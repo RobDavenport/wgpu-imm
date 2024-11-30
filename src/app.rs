@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use bytemuck::bytes_of;
 use glam::{Mat4, Vec3A};
 use pollster::FutureExt;
 use wgpu::{
@@ -9,8 +8,9 @@ use wgpu::{
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::{MouseButton, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 use crate::camera::Camera;
@@ -75,31 +75,28 @@ impl ApplicationHandler for StateApplication {
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let state = &mut self.state.as_mut().unwrap();
-
-                    let pressed = event.state.is_pressed();
-
-                    if event.logical_key == "w" && pressed {
-                        state.camera_delta.z -= 1.0;
-                    } else if event.logical_key == "s" && pressed {
-                        state.camera_delta.z += 1.0;
-                    } else {
-                        state.camera_delta.z = 0.0
-                    }
-
-                    if event.logical_key == "q" && pressed {
-                        state.camera_delta.x += 1.0;
-                    } else if event.logical_key == "e" && pressed {
-                        state.camera_delta.x -= 1.0;
-                    } else {
-                        state.camera_delta.x = 0.0
-                    }
-
-                    if event.logical_key == "a" && pressed {
-                        state.camera_yaw_delta = 1.0;
-                    } else if event.logical_key == "d" && pressed {
-                        state.camera_yaw_delta = -1.0;
-                    } else {
-                        state.camera_yaw_delta = 0.0;
+                    // Check the key event state and handle accordingly
+                    match event.state.is_pressed() {
+                        true => match event.physical_key {
+                            PhysicalKey::Code(KeyCode::KeyW) => state.camera_delta.z += 1.0,
+                            PhysicalKey::Code(KeyCode::KeyS) => state.camera_delta.z -= 1.0,
+                            PhysicalKey::Code(KeyCode::KeyQ) => state.camera_delta.x += 1.0,
+                            PhysicalKey::Code(KeyCode::KeyE) => state.camera_delta.x -= 1.0,
+                            PhysicalKey::Code(KeyCode::KeyA) => state.camera_yaw_delta = 1.0,
+                            PhysicalKey::Code(KeyCode::KeyD) => state.camera_yaw_delta = -1.0,
+                            _ => {}
+                        },
+                        false => {
+                            match event.physical_key {
+                                PhysicalKey::Code(KeyCode::KeyW)
+                                | PhysicalKey::Code(KeyCode::KeyS) => state.camera_delta.z = 0.0,
+                                PhysicalKey::Code(KeyCode::KeyQ)
+                                | PhysicalKey::Code(KeyCode::KeyE) => state.camera_delta.x = 0.0,
+                                PhysicalKey::Code(KeyCode::KeyA)
+                                | PhysicalKey::Code(KeyCode::KeyD) => state.camera_yaw_delta = 0.0,
+                                _ => {}
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -411,7 +408,7 @@ impl State {
     fn update(&mut self) {
         const DT: f32 = 1.0 / 60.0;
         const CAMERA_SPEED: f32 = 2.5;
-        const CAMERA_ROT_SPEED: f32 = 0.25;
+        const CAMERA_ROT_SPEED: f32 = 0.75;
 
         let forward = self.camera.get_forward();
         let right = Vec3A::Y.cross(forward);
