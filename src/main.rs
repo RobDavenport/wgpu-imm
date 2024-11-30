@@ -2,6 +2,7 @@ use pollster::block_on;
 use winit::event_loop::EventLoop;
 
 mod app;
+mod camera;
 mod vertex;
 
 use app::StateApplication;

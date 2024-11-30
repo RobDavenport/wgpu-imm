@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use bytemuck::bytes_of;
+use glam::{Mat4, Vec3A};
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, Device, Instance, MemoryHints, PresentMode, Queue, RenderPipeline, Surface,
+    Adapter, BindGroup, Device, Instance, MemoryHints, PresentMode, Queue, RenderPipeline, Surface,
     SurfaceCapabilities,
 };
 use winit::application::ApplicationHandler;
@@ -12,6 +13,7 @@ use winit::event::{MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
+use crate::camera::Camera;
 use crate::vertex::*;
 
 pub struct StateApplication {
@@ -49,6 +51,7 @@ impl ApplicationHandler for StateApplication {
                     self.state.as_mut().unwrap().resize(physical_size);
                 }
                 WindowEvent::RedrawRequested => {
+                    self.state.as_mut().unwrap().update();
                     self.state.as_mut().unwrap().render().unwrap();
                 }
                 WindowEvent::CursorMoved { position, .. } => {
@@ -57,17 +60,46 @@ impl ApplicationHandler for StateApplication {
                     state.my = 1.0 - ((position.y as f32) / state.size.height as f32);
                 }
                 WindowEvent::MouseInput { button, state, .. } => {
-                    if button == MouseButton::Left && state.is_pressed() {
-                        let state = self.state.as_mut().unwrap();
+                    // if button == MouseButton::Left && state.is_pressed() {
+                    //     let state = self.state.as_mut().unwrap();
 
-                        let vertex = Vertex {
-                            position: [(state.mx * 2.0) - 1.0, (state.my * 2.0) - 1.0, 1.0],
-                            color: [fastrand::f32(), fastrand::f32(), fastrand::f32()],
-                        };
+                    //     let vertex = Vertex {
+                    //         position: [(state.mx * 2.0) - 1.0, (state.my * 2.0) - 1.0, 1.0],
+                    //         color: [fastrand::f32(), fastrand::f32(), fastrand::f32()],
+                    //     };
 
-                        println!("Pushed: {vertex:?}");
+                    //     println!("Pushed: {vertex:?}");
 
-                        state.vertices.push(vertex);
+                    //     state.vertices.push(vertex);
+                    // }
+                }
+                WindowEvent::KeyboardInput { event, .. } => {
+                    let state = &mut self.state.as_mut().unwrap();
+
+                    let pressed = event.state.is_pressed();
+
+                    if event.logical_key == "w" && pressed {
+                        state.camera_delta.z -= 1.0;
+                    } else if event.logical_key == "s" && pressed {
+                        state.camera_delta.z += 1.0;
+                    } else {
+                        state.camera_delta.z = 0.0
+                    }
+
+                    if event.logical_key == "q" && pressed {
+                        state.camera_delta.x += 1.0;
+                    } else if event.logical_key == "e" && pressed {
+                        state.camera_delta.x -= 1.0;
+                    } else {
+                        state.camera_delta.x = 0.0
+                    }
+
+                    if event.logical_key == "a" && pressed {
+                        state.camera_yaw_delta = 1.0;
+                    } else if event.logical_key == "d" && pressed {
+                        state.camera_yaw_delta = -1.0;
+                    } else {
+                        state.camera_yaw_delta = 0.0;
                     }
                 }
                 _ => {}
@@ -91,12 +123,17 @@ struct State {
     window: Arc<Window>,
 
     render_pipeline: RenderPipeline,
-    vertex_buffer: Arc<wgpu::Buffer>,
+    vertex_buffer: wgpu::Buffer,
 
     mx: f32,
     my: f32,
 
     vertices: Vec<Vertex>,
+    camera: Camera,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: BindGroup,
+    camera_delta: Vec3A,
+    camera_yaw_delta: f32,
 }
 
 impl State {
@@ -116,10 +153,41 @@ impl State {
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
+
+        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Buffer"),
+            size: size_of::<Mat4>() as u64, //f32, 4x4
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -166,12 +234,29 @@ impl State {
             cache: None,     // 6.
         });
 
-        let vertex_buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
             size: 4 * 1024 * 1024, // 4mb
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
+        });
+
+        let camera = Camera::new(&config);
+
+        let vertices = vec![
+            Vertex {
+                position: [1.0, 1.0, 0.0],
+                color: [1.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [-1.0, 1.0, 0.0],
+                color: [0.0, 1.0, 0.0],
+            },
+            Vertex {
+                position: [-1.0, -1.0, 0.0],
+                color: [0.0, 0.0, 1.0],
+            },
+        ];
 
         Self {
             surface,
@@ -184,7 +269,12 @@ impl State {
             vertex_buffer,
             mx: 0.0,
             my: 0.0,
-            vertices: Vec::default(),
+            vertices,
+            camera,
+            camera_buffer,
+            camera_bind_group,
+            camera_delta: Vec3A::ZERO,
+            camera_yaw_delta: 0.0,
         }
     }
 
@@ -267,7 +357,16 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(self.vertices.as_slice()));
+        self.queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(self.vertices.as_slice()),
+        );
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&self.camera.get_view_projection().to_cols_array()),
+        );
 
         self.queue.submit([]);
 
@@ -279,9 +378,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -294,6 +393,7 @@ impl State {
 
             // NEW!
             render_pass.set_pipeline(&self.render_pipeline); // 2.
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..self.vertices.len() as u32, 0..1); // 3.
         }
@@ -306,5 +406,19 @@ impl State {
 
     pub fn window(&self) -> &Window {
         &self.window
+    }
+
+    fn update(&mut self) {
+        const DT: f32 = 1.0 / 60.0;
+        const CAMERA_SPEED: f32 = 2.5;
+        const CAMERA_ROT_SPEED: f32 = 0.25;
+
+        let forward = self.camera.get_forward();
+        let right = Vec3A::Y.cross(forward);
+
+        self.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
+        self.camera.eye += right * self.camera_delta.x * DT * CAMERA_SPEED;
+
+        self.camera.yaw += self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
     }
 }
