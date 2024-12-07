@@ -10,19 +10,17 @@ pub struct Camera {
     aspect: f32,
     fovy: f32,
     z_near: f32,
-    z_far: f32,
 }
 
 impl Camera {
     pub fn new(config: &SurfaceConfiguration) -> Self {
         Self {
-            eye: Vec3A::new(0.0, 0.0, 5.0),
+            eye: Vec3A::new(0.0, 1.0, 5.0),
             yaw: PI,
             up: Vec3A::Y,
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             z_near: 0.1,
-            z_far: 100.0,
         }
     }
 
@@ -32,8 +30,9 @@ impl Camera {
 
     pub fn get_view_projection(&self) -> Mat4 {
         let view = Mat4::look_to_rh(self.eye.into(), self.get_forward().into(), self.up.into());
+
         let proj =
-            Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.z_near, self.z_far);
+            Mat4::perspective_infinite_reverse_rh(self.fovy.to_radians(), self.aspect, self.z_near);
 
         proj * view
     }
