@@ -24,8 +24,10 @@ pub struct StateApplication {
 
 impl StateApplication {
     pub fn new() -> Self {
-        Self { state: None ,
-        game: Game::new()}
+        Self {
+            state: None,
+            game: Game::new(),
+        }
     }
 }
 
@@ -55,6 +57,7 @@ impl ApplicationHandler for StateApplication {
                 }
                 WindowEvent::RedrawRequested => {
                     self.state.as_mut().unwrap().update();
+                    self.game.update();
                     self.game.draw(self.state.as_mut().unwrap());
                     self.state.as_mut().unwrap().render().unwrap();
                 }

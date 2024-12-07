@@ -3,8 +3,8 @@ use winit::event_loop::EventLoop;
 
 mod app;
 mod camera;
-mod vertex;
 mod game;
+mod vertex;
 
 use app::StateApplication;
 
