@@ -9,7 +9,10 @@ var<uniform> camera: CameraUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) color: vec3<f32>,
+    @location(1) color: vec3<f32>, // Color, or UVs, or Both
+    // @location(2) uvs: vec2<f32>,
+    // @location(3) normals: vec3<f32>, // Must have both normals & Lighting values
+    // @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
 };
 
 struct VertexOutput {
