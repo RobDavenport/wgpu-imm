@@ -14,15 +14,18 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 use crate::camera::Camera;
+use crate::game::Game;
 use crate::vertex::*;
 
 pub struct StateApplication {
     state: Option<State>,
+    game: Game,
 }
 
 impl StateApplication {
     pub fn new() -> Self {
-        Self { state: None }
+        Self { state: None ,
+        game: Game::new()}
     }
 }
 
@@ -52,6 +55,7 @@ impl ApplicationHandler for StateApplication {
                 }
                 WindowEvent::RedrawRequested => {
                     self.state.as_mut().unwrap().update();
+                    self.game.draw(self.state.as_mut().unwrap());
                     self.state.as_mut().unwrap().render().unwrap();
                 }
                 WindowEvent::CursorMoved { position, .. } => {
@@ -110,7 +114,7 @@ impl ApplicationHandler for StateApplication {
     }
 }
 
-struct State {
+pub struct State {
     surface: Surface<'static>,
     device: Device,
     queue: Queue,
@@ -125,12 +129,13 @@ struct State {
     mx: f32,
     my: f32,
 
-    vertices: Vec<Vertex>,
     camera: Camera,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: BindGroup,
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
+
+    vertex_count: usize,
 }
 
 impl State {
@@ -240,20 +245,20 @@ impl State {
 
         let camera = Camera::new(&config);
 
-        let vertices = vec![
-            Vertex {
-                position: [1.0, 1.0, 0.0],
-                color: [1.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-1.0, 1.0, 0.0],
-                color: [0.0, 1.0, 0.0],
-            },
-            Vertex {
-                position: [-1.0, -1.0, 0.0],
-                color: [0.0, 0.0, 1.0],
-            },
-        ];
+        // let vertices = vec![
+        //     Vertex {
+        //         position: [1.0, 1.0, 0.0],
+        //         color: [1.0, 0.0, 0.0],
+        //     },
+        //     Vertex {
+        //         position: [-1.0, 1.0, 0.0],
+        //         color: [0.0, 1.0, 0.0],
+        //     },
+        //     Vertex {
+        //         position: [-1.0, -1.0, 0.0],
+        //         color: [0.0, 0.0, 1.0],
+        //     },
+        // ];
 
         Self {
             surface,
@@ -266,12 +271,13 @@ impl State {
             vertex_buffer,
             mx: 0.0,
             my: 0.0,
-            vertices,
             camera,
             camera_buffer,
             camera_bind_group,
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
+
+            vertex_count: 0,
         }
     }
 
@@ -355,11 +361,6 @@ impl State {
             });
 
         self.queue.write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(self.vertices.as_slice()),
-        );
-        self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&self.camera.get_view_projection().to_cols_array()),
@@ -392,13 +393,30 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline); // 2.
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.vertices.len() as u32, 0..1); // 3.
+            render_pass.draw(0..self.vertex_count as u32, 0..1); // 3.
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
+        self.vertex_count = 0;
+
         Ok(())
+    }
+
+    pub fn draw_tri_list(&mut self, data: &[f32]) {
+        if data.len() % 6 != 0 {
+            println!("Invalid triangle list, size mismatch");
+            return;
+        }
+
+        self.queue.write_buffer(
+            &self.vertex_buffer,
+            self.vertex_count as u64 * 4,
+            bytemuck::cast_slice(data),
+        );
+
+        self.vertex_count += data.len() / 6;
     }
 
     pub fn window(&self) -> &Window {
