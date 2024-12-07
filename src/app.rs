@@ -15,7 +15,9 @@ use winit::window::{Window, WindowId};
 
 use crate::camera::Camera;
 use crate::game::Game;
-use crate::vertex::*;
+use crate::pipeline::Pipeline;
+use crate::vertex::{self, *};
+use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
 pub struct StateApplication {
     state: Option<State>,
@@ -126,7 +128,7 @@ pub struct State {
     size: PhysicalSize<u32>,
     window: Arc<Window>,
 
-    render_pipeline: RenderPipeline,
+    render_pipelines: [RenderPipeline; 2],
     vertex_buffer: wgpu::Buffer,
 
     mx: f32,
@@ -138,7 +140,7 @@ pub struct State {
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
-    vertex_count: usize,
+    virtual_render_pass: VirtualRenderPass,
 }
 
 impl State {
@@ -153,9 +155,14 @@ impl State {
         let config = Self::create_surface_config(size, surface_caps);
         surface.configure(&device, &config);
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        let shader_color = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader Color"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader_color.wgsl").into()),
+        });
+
+        let shader_texture = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader Texture"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader_uv.wgsl").into()),
         });
 
         let camera_bind_group_layout =
@@ -196,18 +203,62 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+        let render_pipeline_color =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Render Pipeline Color"),
+                layout: Some(&render_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader_color,
+                    entry_point: Some("vs_main"), // 1.
+                    buffers: &[vertex::color()],  // 2.
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    // 3.
+                    module: &shader_color,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        // 4.
+                        format: config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw, // 2.
+                    cull_mode: Some(wgpu::Face::Back),
+                    // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    // Requires Features::DEPTH_CLIP_CONTROL
+                    unclipped_depth: false,
+                    // Requires Features::CONSERVATIVE_RASTERIZATION
+                    conservative: false,
+                },
+                depth_stencil: None, // 1.
+                multisample: wgpu::MultisampleState {
+                    count: 1,                         // 2.
+                    mask: !0,                         // 3.
+                    alpha_to_coverage_enabled: false, // 4.
+                },
+                multiview: None, // 5.
+                cache: None,     // 6.
+            });
+
+        let render_pipeline_uvs = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline UVs"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"), // 1.
-                buffers: &[Vertex::desc()],   // 2.
+                module: &shader_texture,
+                entry_point: Some("vs_main"),   // 1.
+                buffers: &[vertex::textured()], // 2.
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 // 3.
-                module: &shader,
+                module: &shader_texture,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     // 4.
@@ -270,7 +321,7 @@ impl State {
             config,
             size,
             window: window_arc,
-            render_pipeline,
+            render_pipelines: [render_pipeline_color, render_pipeline_uvs],
             vertex_buffer,
             mx: 0.0,
             my: 0.0,
@@ -280,7 +331,7 @@ impl State {
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
-            vertex_count: 0,
+            virtual_render_pass: VirtualRenderPass::default(),
         }
     }
 
@@ -392,34 +443,57 @@ impl State {
                 timestamp_writes: None,
             });
 
-            // NEW!
-            render_pass.set_pipeline(&self.render_pipeline); // 2.
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.vertex_count as u32, 0..1); // 3.
+            let mut current_byte_index = 0;
+            let mut current_vertex_size = 0;
+
+            for command in self.virtual_render_pass.commands.iter() {
+                match command {
+                    Command::SetPipeline(pipeline) => {
+                        render_pass.set_pipeline(&self.render_pipelines[pipeline.get_shader()]);
+                        current_vertex_size = pipeline.get_vertex_size();
+                    }
+                    Command::Draw(vertex_count) => {
+                        render_pass
+                            .set_vertex_buffer(0, self.vertex_buffer.slice(current_byte_index..));
+                        render_pass.draw(0..*vertex_count, 0..1);
+                        current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
+                    }
+                }
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
-        self.vertex_count = 0;
+        self.virtual_render_pass.reset();
 
         Ok(())
     }
 
-    pub fn draw_tri_list(&mut self, data: &[f32]) {
-        if data.len() % 6 != 0 {
+    pub fn draw_tri_list(&mut self, data: &[f32], pipeline: Pipeline) {
+        let attribute_count = pipeline.get_attribute_count();
+        let total_attributes = data.len();
+        let vertex_count = total_attributes / attribute_count;
+
+        if total_attributes % attribute_count != 0 {
             println!("Invalid triangle list, size mismatch");
             return;
         }
 
         self.queue.write_buffer(
             &self.vertex_buffer,
-            self.vertex_count as u64 * 4,
+            self.virtual_render_pass.last_byte_index,
             bytemuck::cast_slice(data),
         );
 
-        self.vertex_count += data.len() / 6;
+        self.virtual_render_pass
+            .commands
+            .push(Command::SetPipeline(pipeline));
+        self.virtual_render_pass
+            .commands
+            .push(Command::Draw(vertex_count as u32));
+        self.virtual_render_pass.last_byte_index += total_attributes as u64 * 4;
     }
 
     pub fn window(&self) -> &Window {

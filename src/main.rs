@@ -4,7 +4,9 @@ use winit::event_loop::EventLoop;
 mod app;
 mod camera;
 mod game;
+mod pipeline;
 mod vertex;
+mod virtual_render_pass;
 
 use app::StateApplication;
 
