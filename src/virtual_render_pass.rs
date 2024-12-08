@@ -8,7 +8,8 @@ pub struct VirtualRenderPass {
 
 pub enum Command {
     SetPipeline(Pipeline),
-    Draw(u32), //Vertex Count
+    Draw(u32),         //Vertex Count
+    SetTexture(usize), // TextureId
 }
 
 impl VirtualRenderPass {

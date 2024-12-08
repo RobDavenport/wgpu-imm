@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use glam::{Mat4, Vec3A};
+use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, BindGroup, Device, Instance, MemoryHints, PresentMode, Queue, RenderPipeline, Surface,
-    SurfaceCapabilities,
+    Adapter, BindGroup, BindGroupLayout, Device, Instance, MemoryHints, PresentMode, Queue,
+    RenderPipeline, Surface, SurfaceCapabilities,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -39,7 +40,12 @@ impl ApplicationHandler for StateApplication {
         let window = event_loop
             .create_window(Window::default_attributes().with_title("Hello!"))
             .unwrap();
-        self.state = Some(State::new(window));
+
+        let mut state = State::new(window);
+
+        self.game.init(&mut state);
+
+        self.state = Some(state);
     }
 
     fn window_event(
@@ -135,6 +141,7 @@ pub struct State {
     mx: f32,
     my: f32,
 
+    texture_bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
 
     camera: Camera,
@@ -227,7 +234,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
+                bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -360,6 +367,8 @@ impl State {
             camera_yaw_delta: 0.0,
 
             textures: Vec::new(),
+            texture_bind_group_layout,
+
             virtual_render_pass: VirtualRenderPass::default(),
         }
     }
@@ -488,6 +497,9 @@ impl State {
                         render_pass.draw(0..*vertex_count, 0..1);
                         current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
                     }
+                    Command::SetTexture(tex_index) => {
+                        render_pass.set_bind_group(1, &self.textures[*tex_index].bind_group, &[]);
+                    }
                 }
             }
         }
@@ -541,5 +553,74 @@ impl State {
         self.camera.eye += right * self.camera_delta.x * DT * CAMERA_SPEED;
 
         self.camera.yaw += self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
+    }
+
+    pub fn load_texture(&mut self, path: &str) -> usize {
+        let image = ImageReader::open(path).unwrap().decode().unwrap();
+        let image = image.to_rgba8();
+        let dimensions = image.dimensions();
+        let size = wgpu::Extent3d {
+            width: dimensions.0,
+            height: dimensions.1,
+            depth_or_array_layers: 1,
+        };
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size,
+            mip_level_count: 1, // We'll talk about this a little later
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some("diffuse_texture"),
+            view_formats: &[],
+        });
+
+        let sampler = self.device.create_sampler(&texture::sampler_descriptor());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+            label: Some(path),
+        });
+
+        self.queue.write_texture(
+            // Tells wgpu where to copy the pixel data
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            // The actual pixel data
+            &image,
+            // The layout of the texture
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * dimensions.0),
+                rows_per_image: Some(dimensions.1),
+            },
+            size,
+        );
+
+        let texture = Texture {
+            texture,
+            view,
+            sampler,
+            bind_group,
+        };
+
+        self.textures.push(texture);
+        self.textures.len() - 1
     }
 }

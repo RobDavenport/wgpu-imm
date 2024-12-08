@@ -3,6 +3,7 @@ use bytemuck::{cast_slice, from_bytes};
 
 pub struct Game {
     t: f32,
+    tex_index: usize,
 
     cube: Vec<f32>,
     fox: Vec<f32>,
@@ -122,7 +123,16 @@ impl Game {
         let cube = load_mesh("assets/BoxVertexColors.glb");
         let fox = load_mesh("assets/Fox.glb");
 
-        Self { t: 0.0, cube, fox }
+        Self {
+            t: 0.0,
+            cube,
+            fox,
+            tex_index: 0,
+        }
+    }
+
+    pub fn init(&mut self, state: &mut State) {
+        self.tex_index = state.load_texture("assets/Fox.png");
     }
 
     pub fn update(&mut self) {
