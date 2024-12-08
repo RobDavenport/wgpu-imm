@@ -191,8 +191,6 @@ impl State {
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
-                        // This should match the filterable field of the
-                        // corresponding Texture entry above.
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
                         count: None,
                     },
@@ -231,9 +229,16 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
-        let render_pipeline_layout =
+        let render_pipeline_layout_colored =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
+                label: Some("Render Pipeline Layout Colored"),
+                bind_group_layouts: &[&camera_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let render_pipeline_layout_uvs =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout Colored"),
                 bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
@@ -241,7 +246,7 @@ impl State {
         let render_pipeline_color =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Render Pipeline Color"),
-                layout: Some(&render_pipeline_layout),
+                layout: Some(&render_pipeline_layout_colored),
                 vertex: wgpu::VertexState {
                     module: &shader_color,
                     entry_point: Some("vs_main"), // 1.
@@ -249,11 +254,9 @@ impl State {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
-                    // 3.
                     module: &shader_color,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        // 4.
                         format: config.format,
                         blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::ALL,
@@ -261,30 +264,27 @@ impl State {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                    topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw, // 2.
+                    front_face: wgpu::FrontFace::Ccw,
                     cull_mode: Some(wgpu::Face::Back),
-                    // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                     polygon_mode: wgpu::PolygonMode::Fill,
-                    // Requires Features::DEPTH_CLIP_CONTROL
                     unclipped_depth: false,
-                    // Requires Features::CONSERVATIVE_RASTERIZATION
                     conservative: false,
                 },
                 depth_stencil: None, // 1.
                 multisample: wgpu::MultisampleState {
-                    count: 1,                         // 2.
-                    mask: !0,                         // 3.
-                    alpha_to_coverage_enabled: false, // 4.
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
                 },
-                multiview: None, // 5.
-                cache: None,     // 6.
+                multiview: None,
+                cache: None,
             });
 
         let render_pipeline_uvs = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline UVs"),
-            layout: Some(&render_pipeline_layout),
+            layout: Some(&render_pipeline_layout_uvs),
             vertex: wgpu::VertexState {
                 module: &shader_texture,
                 entry_point: Some("vs_main"),   // 1.
@@ -327,27 +327,12 @@ impl State {
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: 4 * 1024 * 1024, // 4mb
+            size: 8 * 1024 * 1024, // 8mb
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let camera = Camera::new(&config);
-
-        // let vertices = vec![
-        //     Vertex {
-        //         position: [1.0, 1.0, 0.0],
-        //         color: [1.0, 0.0, 0.0],
-        //     },
-        //     Vertex {
-        //         position: [-1.0, 1.0, 0.0],
-        //         color: [0.0, 1.0, 0.0],
-        //     },
-        //     Vertex {
-        //         position: [-1.0, -1.0, 0.0],
-        //         color: [0.0, 0.0, 1.0],
-        //     },
-        // ];
 
         Self {
             surface,
@@ -498,7 +483,8 @@ impl State {
                         current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
                     }
                     Command::SetTexture(tex_index) => {
-                        render_pass.set_bind_group(1, &self.textures[*tex_index].bind_group, &[]);
+                        let texture = &self.textures[*tex_index];
+                        render_pass.set_bind_group(1, &texture.bind_group, &[]);
                     }
                 }
             }
@@ -535,6 +521,12 @@ impl State {
             .commands
             .push(Command::Draw(vertex_count as u32));
         self.virtual_render_pass.last_byte_index += total_attributes as u64 * 4;
+    }
+
+    pub fn set_texture(&mut self, tex_id: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::SetTexture(tex_id));
     }
 
     pub fn window(&self) -> &Window {
@@ -612,6 +604,8 @@ impl State {
             },
             size,
         );
+
+        self.queue.submit([]);
 
         let texture = Texture {
             texture,

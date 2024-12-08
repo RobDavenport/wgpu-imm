@@ -164,6 +164,7 @@ impl Game {
         //     1.0 + sin * 0.3, // V3
         // ];
         state.draw_tri_list(&self.cube, Pipeline::Color);
+        state.set_texture(self.tex_index);
         state.draw_tri_list(&self.fox, Pipeline::Uv);
     }
 }
