@@ -16,6 +16,7 @@ use winit::window::{Window, WindowId};
 use crate::camera::Camera;
 use crate::game::Game;
 use crate::pipeline::Pipeline;
+use crate::texture::{self, Texture};
 use crate::vertex::{self, *};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
@@ -134,6 +135,8 @@ pub struct State {
     mx: f32,
     my: f32,
 
+    textures: Vec<Texture>,
+
     camera: Camera,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: BindGroup,
@@ -164,6 +167,31 @@ impl State {
             label: Some("Shader Texture"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader_uv.wgsl").into()),
         });
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the
+                        // corresponding Texture entry above.
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
 
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -331,6 +359,7 @@ impl State {
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
+            textures: Vec::new(),
             virtual_render_pass: VirtualRenderPass::default(),
         }
     }

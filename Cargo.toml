@@ -12,3 +12,4 @@ bytemuck = { version = "1.20.0", features = [ "derive" ] }
 fastrand = "2.2.0"
 glam = "0.29.2"
 gltf = "1.4.1"
+image = "0.25.5"
