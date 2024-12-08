@@ -1,5 +1,6 @@
 use crate::{app::State, pipeline::Pipeline};
 use bytemuck::{cast_slice, from_bytes};
+use glam::{Mat4, Vec3};
 
 pub struct Game {
     t: f32,
@@ -163,8 +164,10 @@ impl Game {
         //     0.0 + cos * 0.1,
         //     1.0 + sin * 0.3, // V3
         // ];
+        state.push_matrix(Mat4::IDENTITY);
         state.draw_tri_list(&self.cube, Pipeline::Color);
         state.set_texture(self.tex_index);
+        state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
         state.draw_tri_list(&self.fox, Pipeline::Uv);
     }
 }

@@ -28,7 +28,9 @@ pub struct StateApplication {
 
 const CAMERA_BIND_GROUP_INDEX: u32 = 0;
 const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
+
 const IMMEDIATE_VERTEX_BUFFER_INDEX: u32 = 0;
+const MODEL_MATRIX_VERTEX_BUFFER_INDEX: u32 = 1;
 
 impl StateApplication {
     pub fn new() -> Self {
@@ -150,6 +152,7 @@ pub struct State {
 
     camera: Camera,
     camera_buffer: wgpu::Buffer,
+    model_matrix_buffer: wgpu::Buffer,
     camera_bind_group: BindGroup,
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
@@ -205,6 +208,7 @@ impl State {
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
+                    // View/Proj
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
@@ -217,8 +221,15 @@ impl State {
                 label: Some("camera_bind_group_layout"),
             });
 
+        let model_matrix_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Model Matrix Buffer"),
+            size: 8 * 1024 * 1024, // 8mb
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Camera Buffer"),
+            label: Some("View Matrix Buffer"),
             size: size_of::<Mat4>() as u64, //f32, 4x4
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -242,7 +253,7 @@ impl State {
 
         let render_pipeline_layout_uvs =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout Colored"),
+                label: Some("Render Pipeline Layout Uvs"),
                 bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
@@ -254,7 +265,7 @@ impl State {
                 vertex: wgpu::VertexState {
                     module: &shader_color,
                     entry_point: Some("vs_main"), // 1.
-                    buffers: &[vertex::color()],  // 2.
+                    buffers: &[vertex::color(), vertex::model_matrix()], // 2.
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
@@ -276,7 +287,7 @@ impl State {
                     unclipped_depth: false,
                     conservative: false,
                 },
-                depth_stencil: None, // 1.
+                depth_stencil: None,
                 multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,
@@ -291,16 +302,14 @@ impl State {
             layout: Some(&render_pipeline_layout_uvs),
             vertex: wgpu::VertexState {
                 module: &shader_texture,
-                entry_point: Some("vs_main"),   // 1.
-                buffers: &[vertex::textured()], // 2.
+                entry_point: Some("vs_main"),
+                buffers: &[vertex::textured(), vertex::model_matrix()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                // 3.
                 module: &shader_texture,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    // 4.
                     format: config.format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
@@ -308,25 +317,22 @@ impl State {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // 2.
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                 polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
                 unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None, // 1.
+            depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: 1,                         // 2.
-                mask: !0,                         // 3.
-                alpha_to_coverage_enabled: false, // 4.
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
             },
-            multiview: None, // 5.
-            cache: None,     // 6.
+            multiview: None,
+            cache: None,
         });
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -359,6 +365,7 @@ impl State {
             texture_bind_group_layout,
 
             virtual_render_pass: VirtualRenderPass::default(),
+            model_matrix_buffer,
         }
     }
 
@@ -471,8 +478,13 @@ impl State {
             });
 
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera_bind_group, &[]);
+            render_pass.set_vertex_buffer(
+                MODEL_MATRIX_VERTEX_BUFFER_INDEX,
+                self.model_matrix_buffer.slice(..),
+            );
             let mut current_byte_index = 0;
             let mut current_vertex_size = 0;
+            let mut current_model_matrix = 0;
 
             for command in self.virtual_render_pass.commands.iter() {
                 match command {
@@ -485,7 +497,10 @@ impl State {
                             IMMEDIATE_VERTEX_BUFFER_INDEX,
                             self.vertex_buffer.slice(current_byte_index..),
                         );
-                        render_pass.draw(0..*vertex_count, 0..1);
+                        render_pass.draw(
+                            0..*vertex_count,
+                            current_model_matrix - 1..current_model_matrix,
+                        );
                         current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
                     }
                     Command::SetTexture(tex_index) => {
@@ -495,6 +510,9 @@ impl State {
                             &texture.bind_group,
                             &[],
                         );
+                    }
+                    Command::SetModelMatrix => {
+                        current_model_matrix += 1;
                     }
                 }
             }
@@ -531,6 +549,19 @@ impl State {
             .commands
             .push(Command::Draw(vertex_count as u32));
         self.virtual_render_pass.last_byte_index += total_attributes as u64 * 4;
+    }
+
+    pub fn push_matrix(&mut self, matrix: Mat4) {
+        let offset = self.virtual_render_pass.matrix_count * size_of::<Mat4>() as u64;
+        self.queue.write_buffer(
+            &self.model_matrix_buffer,
+            offset,
+            bytemuck::bytes_of(&matrix),
+        );
+        self.virtual_render_pass
+            .commands
+            .push(Command::SetModelMatrix);
+        self.virtual_render_pass.matrix_count += 1;
     }
 
     pub fn set_texture(&mut self, tex_id: usize) {
