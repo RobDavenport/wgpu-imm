@@ -26,6 +26,10 @@ pub struct StateApplication {
     game: Game,
 }
 
+const CAMERA_BIND_GROUP_INDEX: u32 = 0;
+const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
+const IMMEDIATE_VERTEX_BUFFER_INDEX: u32 = 0;
+
 impl StateApplication {
     pub fn new() -> Self {
         Self {
@@ -466,7 +470,7 @@ impl State {
                 timestamp_writes: None,
             });
 
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera_bind_group, &[]);
             let mut current_byte_index = 0;
             let mut current_vertex_size = 0;
 
@@ -477,14 +481,20 @@ impl State {
                         current_vertex_size = pipeline.get_vertex_size();
                     }
                     Command::Draw(vertex_count) => {
-                        render_pass
-                            .set_vertex_buffer(0, self.vertex_buffer.slice(current_byte_index..));
+                        render_pass.set_vertex_buffer(
+                            IMMEDIATE_VERTEX_BUFFER_INDEX,
+                            self.vertex_buffer.slice(current_byte_index..),
+                        );
                         render_pass.draw(0..*vertex_count, 0..1);
                         current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
                     }
                     Command::SetTexture(tex_index) => {
                         let texture = &self.textures[*tex_index];
-                        render_pass.set_bind_group(1, &texture.bind_group, &[]);
+                        render_pass.set_bind_group(
+                            TEXTURE_BIND_GROUP_INDEX,
+                            &texture.bind_group,
+                            &[],
+                        );
                     }
                 }
             }
