@@ -5,6 +5,7 @@ mod app;
 mod camera;
 mod game;
 mod pipeline;
+mod texture;
 mod vertex;
 mod virtual_render_pass;
 
