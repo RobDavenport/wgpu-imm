@@ -3,6 +3,9 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 TODO:
+- Add Lighting
+- Clean up duplicated code, in creation of multiple render pipelines
+    - Maybe move them to Pipeline.rs
 - Consider "buffer" management or "draw preloaded asset" via buffers
 - Consider how to handle dynamic or procedural textures
 - Add 2d quad rendering

@@ -14,7 +14,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraUniformType};
 use crate::game::Game;
 use crate::pipeline::Pipeline;
 use crate::texture::{self, DepthTexture, Texture};
@@ -234,7 +234,7 @@ impl State {
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("View Matrix Buffer"),
-            size: size_of::<Mat4>() as u64, //f32, 4x4
+            size: size_of::<CameraUniformType>() as u64, //20 floats
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -474,7 +474,7 @@ impl State {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::cast_slice(&self.camera.get_view_projection().to_cols_array()),
+            bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
         );
 
         self.queue.submit([]);
