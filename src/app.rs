@@ -17,7 +17,7 @@ use winit::window::{Window, WindowId};
 use crate::camera::Camera;
 use crate::game::Game;
 use crate::pipeline::Pipeline;
-use crate::texture::{self, Texture};
+use crate::texture::{self, DepthTexture, Texture};
 use crate::vertex::{self, *};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
@@ -143,6 +143,7 @@ pub struct State {
 
     render_pipelines: [RenderPipeline; 2],
     vertex_buffer: wgpu::Buffer,
+    depth_texture: DepthTexture,
 
     mx: f32,
     my: f32,
@@ -181,6 +182,9 @@ impl State {
             label: Some("Shader Texture"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader_uv.wgsl").into()),
         });
+
+        let depth_texture =
+            texture::DepthTexture::create_depth_texture(&device, &config, "depth_texture");
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -287,7 +291,13 @@ impl State {
                     unclipped_depth: false,
                     conservative: false,
                 },
-                depth_stencil: None,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: texture::DepthTexture::DEPTH_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Greater, // 1.
+                    stencil: wgpu::StencilState::default(),        // 2.
+                    bias: wgpu::DepthBiasState::default(),
+                }),
                 multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,
@@ -325,7 +335,13 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::DepthTexture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater, // 1.
+                stencil: wgpu::StencilState::default(),        // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -366,6 +382,7 @@ impl State {
 
             virtual_render_pass: VirtualRenderPass::default(),
             model_matrix_buffer,
+            depth_texture,
         }
     }
 
@@ -433,6 +450,12 @@ impl State {
 
         self.surface.configure(&self.device, &self.config);
 
+        self.depth_texture = texture::DepthTexture::create_depth_texture(
+            &self.device,
+            &self.config,
+            "depth_texture",
+        );
+
         println!("Resized to {:?} from state!", new_size);
     }
 
@@ -472,7 +495,14 @@ impl State {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });

@@ -169,5 +169,9 @@ impl Game {
         state.set_texture(self.tex_index);
         state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
         state.draw_tri_list(&self.fox, Pipeline::Uv);
+        state.push_matrix(Mat4::from_translation(Vec3::new(-2.0, 0.0, 0.0)));
+        state.draw_tri_list(&self.cube, Pipeline::Color);
+        state.push_matrix(Mat4::from_translation(Vec3::new(2.0, 0.0, 0.0)));
+        state.draw_tri_list(&self.cube, Pipeline::Color);
     }
 }
