@@ -10,7 +10,7 @@ var s_diffuse: sampler;
 
 // Vertex Inputs
 
-// struct Vertex {
+// struct VertexIn {
 //     @location(0) position: vec3<f32>,
 //     @location(1) color: vec3<f32>, // Color, or UVs, or Both
 //     @location(2) uvs: vec2<f32>,
@@ -18,38 +18,90 @@ var s_diffuse: sampler;
 //     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
 // };
 
-struct VertexColor {
+// struct VertexOut {
+//     @builtin(position) clip_position: vec3<f32>,
+//     @location(1) color: vec3<f32>,
+//     @location(2) uvs: vec2<f32>,
+//     @location(3) normals: vec3<f32>,
+//     @location(4) lighting: vec3<f32>,
+// };
+
+// Vertex Color
+struct VertexColorIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
 };
 
-struct VertexUv {
+struct VertexColorOut {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) color: vec3<f32>,
+};
+
+// Vertex UVs
+struct VertexUvIn {
     @location(0) position: vec3<f32>,
     @location(2) uvs: vec2<f32>,
 };
 
-struct VertexColorUv {
+struct VertexUvOut {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(1) uvs: vec2<f32>,
+};
+
+// Vertex Color + UVs
+struct VertexColorUvIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
 };
 
-struct VertexColorLit {
+struct VertexColorUvOut {
+    @builtin(position) clip_position: vec3<f32>,
+    @location(1) color: vec3<f32>,
+    @location(2) uvs: vec2<f32>,
+};
+
+// Vertex Color + Lighting
+struct VertexColorLitIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>,
 };
 
-struct VertexUvLit {
+struct VertexColorLitOut {
+    @builtin(position) clip_position: vec3<f32>,
+    @location(1) color: vec3<f32>,
+    @location(3) normals: vec3<f32>,
+    @location(4) lighting: vec3<f32>,
+};
+
+// Vertex UV + Lighting
+struct VertexUvLitIn {
     @location(0) position: vec3<f32>,
     @location(2) uvs: vec2<f32>,
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>,
 };
 
-struct VertexColorUvLit {
+struct VertexUvLitOut {
+    @builtin(position) clip_position: vec3<f32>,
+    @location(2) uvs: vec2<f32>,
+    @location(3) normals: vec3<f32>,
+    @location(4) lighting: vec3<f32>,
+};
+
+// Vertex Color + UV + Lighting
+struct VertexColorUvLitIn {
     @location(0) position: vec3<f32>,
+    @location(1) color: vec3<f32>,
+    @location(2) uvs: vec2<f32>,
+    @location(3) normals: vec3<f32>,
+    @location(4) lighting: vec3<f32>,
+};
+
+struct VertexColorUvLitOut {
+    @builtin(position) clip_position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
     @location(3) normals: vec3<f32>,

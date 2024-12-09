@@ -10,3 +10,4 @@ TODO:
 
 Ideas:
 - Single "immediate mode" geometry and texture buffer always mapped to specific addresses
+- Dynamic textures can store a pointer & length to texture data on CPU side
