@@ -9,6 +9,50 @@ pub enum Pipeline {
 }
 
 impl Pipeline {
+    pub fn has_color(&self) -> bool {
+        match self {
+            Pipeline::Color => true,
+            Pipeline::Uv => false,
+            Pipeline::ColorUv => true,
+            Pipeline::ColorLit => true,
+            Pipeline::UvLit => false,
+            Pipeline::ColorUvLit => true,
+        }
+    }
+
+    pub fn has_uv(&self) -> bool {
+        match self {
+            Pipeline::Color => false,
+            Pipeline::Uv => true,
+            Pipeline::ColorUv => true,
+            Pipeline::ColorLit => false,
+            Pipeline::UvLit => true,
+            Pipeline::ColorUvLit => true,
+        }
+    }
+
+    pub fn has_lighting(&self) -> bool {
+        match self {
+            Pipeline::Color => false,
+            Pipeline::Uv => false,
+            Pipeline::ColorUv => false,
+            Pipeline::ColorLit => true,
+            Pipeline::UvLit => true,
+            Pipeline::ColorUvLit => true,
+        }
+    }
+
+    pub fn lit(&self) -> Self {
+        match self {
+            Pipeline::Color => Pipeline::ColorLit,
+            Pipeline::Uv => Pipeline::UvLit,
+            Pipeline::ColorUv => Pipeline::ColorUvLit,
+            Pipeline::ColorLit => Pipeline::ColorLit,
+            Pipeline::UvLit => Pipeline::UvLit,
+            Pipeline::ColorUvLit => Pipeline::ColorUvLit,
+        }
+    }
+
     pub fn get_shader(&self) -> usize {
         match self {
             Pipeline::Color => 0,

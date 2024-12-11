@@ -3,7 +3,9 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 TODO:
+- Improve Model Importing
 - Add Lighting
+- Make Camera / View Matrix setup stuff available from Game
 - Clean up duplicated code, in creation of multiple render pipelines
     - Maybe move them to Pipeline.rs
 - Consider "buffer" management or "draw preloaded asset" via buffers
