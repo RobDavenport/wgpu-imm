@@ -11,6 +11,43 @@ pub enum Pipeline {
 }
 
 impl Pipeline {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Pipeline::Color => "color",
+            Pipeline::Uv => "uv",
+            Pipeline::ColorUv => "color uv",
+            Pipeline::ColorLit => "color lit",
+            Pipeline::UvLit => "uv lit",
+            Pipeline::ColorUvLit => "color uv lit",
+        }
+    }
+
+    pub fn vertex_shader(&self) -> &'static str {
+        match self {
+            Pipeline::Color => "vs_color",
+            Pipeline::Uv => "vs_uv",
+            Pipeline::ColorUv => "vs_color_uv",
+            Pipeline::ColorLit => "vs_color_lit",
+            Pipeline::UvLit => "vs_uv_lit",
+            Pipeline::ColorUvLit => "vs_color_uv_lit",
+        }
+    }
+
+    pub fn fragment_shader(&self) -> &'static str {
+        match self {
+            Pipeline::Color => "fs_color",
+            Pipeline::Uv => "fs_uv",
+            Pipeline::ColorUv => "fs_color_uv",
+            Pipeline::ColorLit => "fs_color_lit",
+            Pipeline::UvLit => "fs_uv_lit",
+            Pipeline::ColorUvLit => "fs_color_uv_lit",
+        }
+    }
+
+    pub fn get_pipeline_buffers(&self) -> [wgpu::VertexBufferLayout<'static>; 2] {
+        [self.get_vertex_descriptor(), vertex::model_matrix()]
+    }
+
     pub fn get_vertex_descriptor(&self) -> wgpu::VertexBufferLayout<'static> {
         match self {
             Pipeline::Color => vertex::color(),
@@ -70,10 +107,10 @@ impl Pipeline {
         match self {
             Pipeline::Color => 0,
             Pipeline::Uv => 1,
-            Pipeline::ColorUv => todo!(),
-            Pipeline::ColorLit => todo!(),
-            Pipeline::UvLit => todo!(),
-            Pipeline::ColorUvLit => todo!(),
+            Pipeline::ColorUv => 2,
+            Pipeline::ColorLit => 3,
+            Pipeline::UvLit => 4,
+            Pipeline::ColorUvLit => 5,
         }
     }
 

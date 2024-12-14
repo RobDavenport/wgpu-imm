@@ -5,8 +5,9 @@ use glam::{Mat4, Vec3A};
 use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, BindGroup, BindGroupLayout, Device, Instance, MemoryHints, PresentMode, Queue,
-    RenderPipeline, Surface, SurfaceCapabilities,
+    Adapter, BindGroup, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout,
+    PresentMode, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, Surface,
+    SurfaceCapabilities, TextureFormat,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -177,14 +178,9 @@ impl State {
         let config = Self::create_surface_config(size, surface_caps);
         surface.configure(&device, &config);
 
-        let shader_color = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader Color"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader_color.wgsl").into()),
-        });
-
-        let shader_texture = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader Texture"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader_uv.wgsl").into()),
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Master Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
         let depth_texture =
@@ -252,108 +248,28 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
-        let render_pipeline_layout_colored =
+        let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout Colored"),
-                bind_group_layouts: &[&camera_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let render_pipeline_layout_uvs =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout Uvs"),
+                label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline_color =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Render Pipeline Color"),
-                layout: Some(&render_pipeline_layout_colored),
-                vertex: wgpu::VertexState {
-                    module: &shader_color,
-                    entry_point: Some("vs_main"), // 1.
-                    buffers: &[vertex::color(), vertex::model_matrix()], // 2.
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader_color,
-                    entry_point: Some("fs_main"),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: config.format,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: texture::DepthTexture::DEPTH_FORMAT,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::Greater, // 1.
-                    stencil: wgpu::StencilState::default(),        // 2.
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-                cache: None,
-            });
+        let render_pipeline_color = Self::create_render_pipeline(
+            &device,
+            &shader,
+            &render_pipeline_layout,
+            config.format,
+            Pipeline::Color,
+        );
 
-        let render_pipeline_uvs = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline UVs"),
-            layout: Some(&render_pipeline_layout_uvs),
-            vertex: wgpu::VertexState {
-                module: &shader_texture,
-                entry_point: Some("vs_main"),
-                buffers: &[vertex::uv(), vertex::model_matrix()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader_texture,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: texture::DepthTexture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Greater, // 1.
-                stencil: wgpu::StencilState::default(),        // 2.
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
+        let render_pipeline_uvs = Self::create_render_pipeline(
+            &device,
+            &shader,
+            &render_pipeline_layout,
+            config.format,
+            Pipeline::Uv,
+        );
 
         let vertex_buffer = device.create_buffer(&mesh::vertex_buffer_descriptor(
             1024 * 1024 * 8,
@@ -438,6 +354,58 @@ impl State {
             })
             .block_on()
             .unwrap()
+    }
+
+    fn create_render_pipeline(
+        device: &Device,
+        shader: &ShaderModule,
+        layout: &PipelineLayout,
+        format: TextureFormat,
+        pipeline: Pipeline,
+    ) -> RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(pipeline.name()),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some(pipeline.vertex_shader()),
+                buffers: &pipeline.get_pipeline_buffers(),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some(pipeline.fragment_shader()),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::DepthTexture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater, // 1.
+                stencil: wgpu::StencilState::default(),        // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        })
     }
 
     fn create_gpu_instance() -> Instance {
