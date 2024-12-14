@@ -18,7 +18,7 @@ use crate::camera::{Camera, CameraUniformType};
 use crate::game::Game;
 use crate::pipeline::Pipeline;
 use crate::texture::{self, DepthTexture, Texture};
-use crate::vertex::{self, *};
+use crate::vertex::{self};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
 pub struct StateApplication {
