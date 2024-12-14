@@ -3,7 +3,6 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 TODO:
-- Fix requirement to set texture, maybe start with dummy data
 - Move stuff from app State over to VirtualGpu
   - Add size/memory limits
 - Add Lighting

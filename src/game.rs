@@ -48,8 +48,8 @@ impl Game {
     }
 
     pub fn draw(&self, state: &mut State) {
-        // state.push_matrix(Mat4::IDENTITY);
-        // state.draw_tri_list(&self.immediate_cube, Pipeline::Color);
+        state.push_matrix(Mat4::IDENTITY);
+        state.draw_tri_list(&self.immediate_cube, Pipeline::Color);
 
         state.set_texture(self.tex_index);
         state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));

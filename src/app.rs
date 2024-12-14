@@ -6,8 +6,7 @@ use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
     Adapter, BindGroup, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout,
-    PresentMode, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, Surface,
-    SurfaceCapabilities, TextureFormat,
+    PresentMode, Queue, RenderPipeline, ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -21,7 +20,6 @@ use crate::game::Game;
 use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
 use crate::texture::{self, DepthTexture, Texture};
-use crate::vertex::{self};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
 pub struct StateApplication {
@@ -278,7 +276,7 @@ impl State {
 
         let camera = Camera::new(&config);
 
-        Self {
+        let mut out = Self {
             surface,
             device,
             queue,
@@ -304,7 +302,11 @@ impl State {
             virtual_render_pass: VirtualRenderPass::default(),
             model_matrix_buffer,
             depth_texture,
-        }
+        };
+
+        out.load_texture("assets/default texture.png");
+
+        out
     }
 
     fn create_surface_config(
@@ -628,6 +630,9 @@ impl State {
         self.camera.eye += right * self.camera_delta.x * DT * CAMERA_SPEED;
 
         self.camera.yaw += self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
+
+        self.push_matrix(Mat4::IDENTITY);
+        self.set_texture(0);
     }
 
     pub fn load_texture(&mut self, path: &str) -> usize {
@@ -642,7 +647,7 @@ impl State {
 
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             size,
-            mip_level_count: 1, // We'll talk about this a little later
+            mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
