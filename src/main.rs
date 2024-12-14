@@ -6,9 +6,11 @@ mod camera;
 mod game;
 mod importer;
 mod light;
+mod mesh;
 mod pipeline;
 mod texture;
 mod vertex;
+mod virtual_gpu;
 mod virtual_render_pass;
 
 use app::StateApplication;

@@ -11,6 +11,8 @@ pub struct Game {
 
     cube: Vec<f32>,
     fox: Vec<f32>,
+
+    cube_index: usize,
 }
 
 impl Game {
@@ -23,11 +25,13 @@ impl Game {
             cube,
             fox,
             tex_index: 0,
+            cube_index: 0,
         }
     }
 
     pub fn init(&mut self, state: &mut State) {
         self.tex_index = state.load_texture("assets/Fox.png");
+        self.cube_index = state.load_static_mesh(&self.cube, Pipeline::Color);
     }
 
     pub fn update(&mut self) {
@@ -44,5 +48,10 @@ impl Game {
         state.draw_tri_list(&self.cube, Pipeline::Color);
         state.push_matrix(Mat4::from_translation(Vec3::new(2.0, 0.0, 0.0)));
         state.draw_tri_list(&self.cube, Pipeline::Color);
+
+        let cube_transform =
+            Mat4::from_translation(Vec3::new(0.0, 3.0, -2.0)) * Mat4::from_rotation_y(self.t);
+        state.push_matrix(cube_transform);
+        state.draw_static_mesh(self.cube_index);
     }
 }

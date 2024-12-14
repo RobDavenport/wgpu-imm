@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use bytemuck::cast_slice;
 use glam::{Mat4, Vec3A};
 use image::ImageReader;
 use pollster::FutureExt;
@@ -16,6 +17,7 @@ use winit::window::{Window, WindowId};
 
 use crate::camera::{Camera, CameraUniformType};
 use crate::game::Game;
+use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
 use crate::texture::{self, DepthTexture, Texture};
 use crate::vertex::{self};
@@ -29,7 +31,7 @@ pub struct StateApplication {
 const CAMERA_BIND_GROUP_INDEX: u32 = 0;
 const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
 
-const IMMEDIATE_VERTEX_BUFFER_INDEX: u32 = 0;
+const VERTEX_BUFFER_INDEX: u32 = 0;
 const MODEL_MATRIX_VERTEX_BUFFER_INDEX: u32 = 1;
 
 impl StateApplication {
@@ -150,6 +152,8 @@ pub struct State {
 
     texture_bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
+    meshes: Vec<Mesh>,
+    indexed_meshes: Vec<IndexedMesh>,
 
     camera: Camera,
     camera_buffer: wgpu::Buffer,
@@ -313,7 +317,7 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader_texture,
                 entry_point: Some("vs_main"),
-                buffers: &[vertex::textured(), vertex::model_matrix()],
+                buffers: &[vertex::uv(), vertex::model_matrix()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -351,12 +355,10 @@ impl State {
             cache: None,
         });
 
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
-            size: 8 * 1024 * 1024, // 8mb
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let vertex_buffer = device.create_buffer(&mesh::vertex_buffer_descriptor(
+            1024 * 1024 * 8,
+            Some("Vertex Buffer"),
+        ));
 
         let camera = Camera::new(&config);
 
@@ -378,6 +380,9 @@ impl State {
             camera_yaw_delta: 0.0,
 
             textures: Vec::new(),
+            meshes: Vec::new(),
+            indexed_meshes: Vec::new(),
+
             texture_bind_group_layout,
 
             virtual_render_pass: VirtualRenderPass::default(),
@@ -524,7 +529,7 @@ impl State {
                     }
                     Command::Draw(vertex_count) => {
                         render_pass.set_vertex_buffer(
-                            IMMEDIATE_VERTEX_BUFFER_INDEX,
+                            VERTEX_BUFFER_INDEX,
                             self.vertex_buffer.slice(current_byte_index..),
                         );
                         render_pass.draw(
@@ -544,6 +549,18 @@ impl State {
                     Command::SetModelMatrix => {
                         current_model_matrix += 1;
                     }
+                    Command::DrawStaticMesh(index) => {
+                        let mesh = &self.meshes[*index];
+                        render_pass
+                            .set_pipeline(&self.render_pipelines[mesh.pipeline.get_shader()]);
+                        render_pass
+                            .set_vertex_buffer(VERTEX_BUFFER_INDEX, mesh.vertex_buffer.slice(..));
+                        render_pass.draw(
+                            0..mesh.vertex_count,
+                            current_model_matrix - 1..current_model_matrix,
+                        );
+                    }
+                    Command::DrawStaticMeshIndexed(_) => todo!(),
                 }
             }
         }
@@ -592,6 +609,12 @@ impl State {
             .commands
             .push(Command::SetModelMatrix);
         self.virtual_render_pass.matrix_count += 1;
+    }
+
+    pub fn draw_static_mesh(&mut self, index: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::DrawStaticMesh(index))
     }
 
     pub fn set_texture(&mut self, tex_id: usize) {
@@ -687,5 +710,32 @@ impl State {
 
         self.textures.push(texture);
         self.textures.len() - 1
+    }
+
+    pub fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
+        let attribute_count = pipeline.get_attribute_count();
+        let total_attributes = data.len();
+        let vertex_count = total_attributes / attribute_count;
+        let bytes = vertex_count * attribute_count * 4;
+
+        if total_attributes % attribute_count != 0 {
+            panic!("Invalid mesh list, size mismatch");
+        }
+
+        let vertex_buffer = self
+            .device
+            .create_buffer(&mesh::vertex_buffer_descriptor(bytes as u64, None));
+
+        self.queue.write_buffer(&vertex_buffer, 0, cast_slice(data));
+        self.queue.submit([]);
+
+        let mesh = Mesh {
+            vertex_buffer,
+            pipeline,
+            vertex_count: vertex_count as u32,
+        };
+
+        self.meshes.push(mesh);
+        self.meshes.len() - 1
     }
 }

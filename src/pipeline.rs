@@ -1,3 +1,5 @@
+use crate::vertex;
+
 #[derive(Clone, Copy, Debug)]
 pub enum Pipeline {
     Color,
@@ -9,6 +11,17 @@ pub enum Pipeline {
 }
 
 impl Pipeline {
+    pub fn get_vertex_descriptor(&self) -> wgpu::VertexBufferLayout<'static> {
+        match self {
+            Pipeline::Color => vertex::color(),
+            Pipeline::Uv => vertex::uv(),
+            Pipeline::ColorUv => vertex::color_uv(),
+            Pipeline::ColorLit => vertex::color_lit(),
+            Pipeline::UvLit => vertex::uv_lit(),
+            Pipeline::ColorUvLit => vertex::color_uv_lit(),
+        }
+    }
+
     pub fn has_color(&self) -> bool {
         match self {
             Pipeline::Color => true,
@@ -79,3 +92,4 @@ impl Pipeline {
         self.get_attribute_count() * 4
     }
 }
+

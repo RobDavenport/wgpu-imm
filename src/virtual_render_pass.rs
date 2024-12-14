@@ -12,6 +12,8 @@ pub enum Command {
     Draw(u32),         //Vertex Count
     SetTexture(usize), // TextureId
     SetModelMatrix,
+    DrawStaticMesh(usize),
+    DrawStaticMeshIndexed(usize),
 }
 
 impl VirtualRenderPass {
