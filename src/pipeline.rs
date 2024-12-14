@@ -92,4 +92,3 @@ impl Pipeline {
         self.get_attribute_count() * 4
     }
 }
-

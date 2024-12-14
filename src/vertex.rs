@@ -1,13 +1,5 @@
-// #[repr(C)]
-// #[derive(Copy, Clone, Debug, Pod, Zeroable)]
-// pub struct Vertex {
-//     pub position: [f32; 3],
-//     pub color: [f32; 3],
-// }
-
 use std::mem;
 
-// lib.rs
 pub fn color() -> wgpu::VertexBufferLayout<'static> {
     wgpu::VertexBufferLayout {
         array_stride: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,

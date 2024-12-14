@@ -3,12 +3,13 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 TODO:
-- Consider "buffer" management or "draw preloaded asset" via buffers
-  - Do "Draw Indexed Mesh" Logic
+- Move stuff from app State over to VirtualGpu
+  - Add size/memory limits
 - Add Lighting
 - Make Camera / View Matrix setup stuff available from Game
 - Clean up duplicated code, in creation of multiple render pipelines
     - Maybe move them to Pipeline.rs
+    - Make use of pipeline::get_vertex_descriptor
 - Consider how to handle dynamic or procedural textures
 - Add 2d quad rendering
 
