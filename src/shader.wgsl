@@ -13,6 +13,16 @@ var t_diffuse: texture_2d<f32>;
 @group(1) @binding(1)
 var s_diffuse: sampler;
 
+// Light Bindings
+@group(2) @binding(0)
+var<uniform> lights: array<Light, 16>;
+
+struct Light {
+    color_intensity: vec4<f32>,
+    position_range: vec4<f32>,
+    direction_angle: vec4<f32>,
+}
+
 struct InstanceInput {
     @location(5) model_matrix_0: vec4<f32>,
     @location(6) model_matrix_1: vec4<f32>,

@@ -1,9 +1,10 @@
 use crate::{
     app::State,
     importer::{self},
+    light::Light,
     pipeline::Pipeline,
 };
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec3, Vec4};
 
 pub struct Game {
     t: f32,
@@ -65,5 +66,12 @@ impl Game {
             * Mat4::from_scale(Vec3::splat(0.025));
         state.push_matrix(fox_transform);
         state.draw_static_mesh(self.fox_static_raw);
+
+        // Ambient Light
+        state.push_light(&Light {
+            color_intensity: Vec4::splat(1.0),
+            position_range: Vec4::splat(-1.0),
+            direction_angle: Vec4::ZERO,
+        });
     }
 }

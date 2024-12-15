@@ -5,6 +5,7 @@ pub struct VirtualRenderPass {
     pub commands: Vec<Command>,
     pub last_byte_index: u64,
     pub matrix_count: u64,
+    pub light_count: u64,
 }
 
 pub enum Command {
@@ -21,5 +22,6 @@ impl VirtualRenderPass {
         self.commands.clear();
         self.last_byte_index = 0;
         self.matrix_count = 0;
+        self.light_count = 0;
     }
 }

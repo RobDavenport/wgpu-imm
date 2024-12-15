@@ -17,6 +17,7 @@ use winit::window::{Window, WindowId};
 
 use crate::camera::{Camera, CameraUniformType};
 use crate::game::Game;
+use crate::light::{self, Light};
 use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
 use crate::texture::{self, DepthTexture, Texture};
@@ -29,10 +30,10 @@ pub struct StateApplication {
 
 const CAMERA_BIND_GROUP_INDEX: u32 = 0;
 const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
+const LIGHT_BIND_GROUP_INDEX: u32 = 2;
 
 const VERTEX_BUFFER_INDEX: u32 = 0;
 const MODEL_MATRIX_VERTEX_BUFFER_INDEX: u32 = 1;
-const LIGHT_BUFFER_INDEX: u32 = 2;
 
 impl StateApplication {
     pub fn new() -> Self {
@@ -162,6 +163,9 @@ pub struct State {
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
+    light_buffer: wgpu::Buffer,
+    light_bind_group: wgpu::BindGroup,
+
     virtual_render_pass: VirtualRenderPass,
 }
 
@@ -224,6 +228,22 @@ impl State {
                 label: Some("camera_bind_group_layout"),
             });
 
+        let light_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    // View/Proj
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("light_bind_group_layout"),
+            });
+
         let model_matrix_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Model Matrix Buffer"),
             size: 8 * 1024 * 1024, // 8mb
@@ -238,6 +258,13 @@ impl State {
             mapped_at_creation: false,
         });
 
+        let light_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("LightBuffer"),
+            size: size_of::<Light>() as u64 * light::MAX_LIGHTS,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -247,10 +274,23 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
+        let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &light_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: light_buffer.as_entire_binding(),
+            }],
+            label: Some("light_bind_group"),
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &texture_bind_group_layout,
+                    &light_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -303,6 +343,9 @@ impl State {
             virtual_render_pass: VirtualRenderPass::default(),
             model_matrix_buffer,
             depth_texture,
+
+            light_buffer,
+            light_bind_group,
         };
 
         out.load_texture("assets/default texture.png");
@@ -453,7 +496,7 @@ impl State {
             bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
         );
 
-        self.queue.submit([]);
+        // self.queue.submit([]);
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -484,6 +527,7 @@ impl State {
             });
 
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.light_bind_group, &[]);
             render_pass.set_vertex_buffer(
                 MODEL_MATRIX_VERTEX_BUFFER_INDEX,
                 self.model_matrix_buffer.slice(..),
@@ -582,6 +626,15 @@ impl State {
             .commands
             .push(Command::Draw(vertex_count as u32));
         self.virtual_render_pass.last_byte_index += total_attributes as u64 * 4;
+    }
+
+    pub fn push_light(&mut self, light: &Light) {
+        let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
+        self.queue.write_buffer(
+            &self.light_buffer,
+            offset,
+            cast_slice(&light.get_light_uniforms()),
+        );
     }
 
     pub fn push_matrix(&mut self, matrix: Mat4) {
@@ -694,7 +747,7 @@ impl State {
             size,
         );
 
-        self.queue.submit([]);
+        // self.queue.submit([]);
 
         let texture = Texture {
             texture,
@@ -722,7 +775,7 @@ impl State {
             .create_buffer(&mesh::vertex_buffer_descriptor(bytes as u64, None));
 
         self.queue.write_buffer(&vertex_buffer, 0, cast_slice(data));
-        self.queue.submit([]);
+        //self.queue.submit([]);
 
         let mesh = Mesh {
             vertex_buffer,
@@ -761,7 +814,7 @@ impl State {
         self.queue.write_buffer(&vertex_buffer, 0, cast_slice(data));
         self.queue
             .write_buffer(&index_buffer, 0, cast_slice(indices));
-        self.queue.submit([]);
+        // self.queue.submit([]);
 
         let mesh = IndexedMesh {
             vertex_buffer,
