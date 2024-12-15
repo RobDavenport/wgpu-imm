@@ -12,7 +12,7 @@ pub enum Command {
     Draw(u32),         //Vertex Count
     SetTexture(usize), // TextureId
     SetModelMatrix,
-    DrawStaticMesh(usize), // Static Mesh ID
+    DrawStaticMesh(usize),        // Static Mesh ID
     DrawStaticMeshIndexed(usize), // Static Mesh Indexed Id
 }
 

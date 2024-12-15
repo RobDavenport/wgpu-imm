@@ -32,6 +32,7 @@ const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
 
 const VERTEX_BUFFER_INDEX: u32 = 0;
 const MODEL_MATRIX_VERTEX_BUFFER_INDEX: u32 = 1;
+const LIGHT_BUFFER_INDEX: u32 = 2;
 
 impl StateApplication {
     pub fn new() -> Self {
@@ -369,13 +370,13 @@ impl State {
             label: Some(pipeline.name()),
             layout: Some(layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: shader,
                 entry_point: Some(pipeline.vertex_shader()),
                 buffers: &pipeline.get_pipeline_buffers(),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: shader,
                 entry_point: Some(pipeline.fragment_shader()),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: format,
