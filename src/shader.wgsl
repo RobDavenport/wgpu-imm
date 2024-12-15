@@ -44,7 +44,7 @@ struct InstanceInput {
 //     @builtin(position) clip_position: vec4<f32>,
 //     @location(1) color: vec3<f32>,
 //     @location(2) uvs: vec2<f32>,
-//     @location(3) normals: vec3<f32>,
+//     @location(3) terms: vec4<f32>,,
 //     @location(4) lighting: vec3<f32>,
 // };
 
@@ -162,7 +162,7 @@ struct VertexColorLitIn {
 struct VertexColorLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(1) color: vec3<f32>,
-    @location(3) normals: vec3<f32>,
+    @location(3) terms: vec4<f32>,
     @location(4) lighting: vec3<f32>,
 };
 
@@ -201,7 +201,7 @@ struct VertexUvLitIn {
 struct VertexUvLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(2) uvs: vec2<f32>,
-    @location(3) normals: vec3<f32>,
+    @location(3) terms: vec4<f32>,
     @location(4) lighting: vec3<f32>,
 };
 
@@ -242,7 +242,7 @@ struct VertexColorUvLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
-    @location(3) normals: vec3<f32>,
+    @location(3) terms: vec4<f32>,
     @location(4) lighting: vec3<f32>,
 };
 
@@ -268,6 +268,61 @@ fn vs_color_uv_lit(
 @fragment
 fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
     // TODO: Write This Shader!
-    var texel = textureSample(t_diffuse, s_diffuse, in.uvs);
+    let texel = textureSample(t_diffuse, s_diffuse, in.uvs);
     return vec4<f32>(in.color * texel.rgb, 1.0);
+}
+
+// Lighting Parts
+const PI = radians(180.0);
+
+struct LightingTerms {
+    n_dot_v: f32,
+    n_dot_l: f32,
+    n_dot_h: f32,
+    v_dot_h: f32,
+}
+
+fn fresnel_schlick(cos_theta: f32, f_0: f32) -> f32 {
+    let cos_theta_clamped = clamp(cos_theta, 0.001, 1.0); // Avoid exactly zero or negative values
+    return f_0 + (1.0 - f_0) * pow(1.0 - cos_theta_clamped, 5.0);
+}
+
+// GGX / Trowbridge-Reitz Normal Distribution Function
+fn d_ggx(n_dot_h: f32, roughness: f32) -> f32 {
+    let alpha = roughness * roughness;
+    let alpha2 = alpha * alpha;
+    let denom = (n_dot_h * n_dot_h) * (alpha2 - 1.0) + 1.0;
+    return alpha2 / (PI * denom * denom);
+}
+
+// Geometry function using Smith's Schlick-GGX
+fn g_schlick_ggx(n_dot_v: f32, roughness: f32) -> f32 {
+    let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+    return n_dot_v / (n_dot_v * (1.0 - k) + k);
+}
+
+// Cook-Torrance BRDF
+fn cook_torrance_specular(
+    light_color: vec3<f32>,
+    n_dot_l: f32,
+    n_dot_v: f32,
+    n_dot_h: f32,
+    v_dot_h: f32,
+    roughness: f32,
+    f_0: f32,
+) -> vec3<f32> {
+    // Fresnel term (Schlick approximation)
+    let f = fresnel_schlick(v_dot_h, f_0);
+
+    // Normal distribution function (GGX)
+    let d = d_ggx(n_dot_h, roughness);
+
+    // Geometry function (Smith's Schlick-GGX)
+    let g = g_schlick_ggx(n_dot_v, roughness) * g_schlick_ggx(n_dot_l, roughness);
+
+    // Cook-Torrance denominator
+    let denom = 4.0 * n_dot_v * n_dot_l + 0.001; // Avoid division by zero
+
+    // Final Cook-Torrance specular term
+    return (d * g * f) / denom * light_color;
 }
