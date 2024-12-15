@@ -9,6 +9,9 @@ TODO:
 - Make Camera / View Matrix setup stuff available from Game
 - Consider how to handle dynamic or procedural textures
 - Add 2d quad rendering
+- Support multiple viewports
+  - figure out API for this
+  - could include Scissor rect if necessary
 
 
 Ideas:
