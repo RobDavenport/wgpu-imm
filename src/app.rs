@@ -144,7 +144,7 @@ pub struct State {
     size: PhysicalSize<u32>,
     window: Arc<Window>,
 
-    render_pipelines: [RenderPipeline; 2],
+    render_pipelines: [RenderPipeline; 6],
     vertex_buffer: wgpu::Buffer,
     depth_texture: DepthTexture,
 
@@ -294,20 +294,11 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline_color = Self::create_render_pipeline(
+        let render_pipelines = Self::generate_render_pipelines(
             &device,
             &shader,
             &render_pipeline_layout,
             config.format,
-            Pipeline::Color,
-        );
-
-        let render_pipeline_uvs = Self::create_render_pipeline(
-            &device,
-            &shader,
-            &render_pipeline_layout,
-            config.format,
-            Pipeline::Uv,
         );
 
         let vertex_buffer = device.create_buffer(&mesh::vertex_buffer_descriptor(
@@ -324,7 +315,7 @@ impl State {
             config,
             size,
             window: window_arc,
-            render_pipelines: [render_pipeline_color, render_pipeline_uvs],
+            render_pipelines,
             vertex_buffer,
             mx: 0.0,
             my: 0.0,
@@ -400,6 +391,28 @@ impl State {
             })
             .block_on()
             .unwrap()
+    }
+
+    fn generate_render_pipelines(
+        device: &Device,
+        shader: &ShaderModule,
+        layout: &PipelineLayout,
+        format: TextureFormat,
+    ) -> [RenderPipeline; 6] {
+        const PIPELINES: [Pipeline; 6] = [
+            Pipeline::Color,
+            Pipeline::Uv,
+            Pipeline::ColorUv,
+            Pipeline::ColorLit,
+            Pipeline::UvLit,
+            Pipeline::ColorUvLit,
+        ];
+
+        std::array::from_fn(|i| {
+            let pipeline = PIPELINES[i];
+
+            Self::create_render_pipeline(device, shader, layout, format, pipeline)
+        })
     }
 
     fn create_render_pipeline(

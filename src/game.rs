@@ -37,20 +37,21 @@ impl Game {
         self.tex_index = state.load_texture("assets/Fox.png");
         let (vertices, indices) =
             importer::import_gltf("assets/BoxVertexColors.glb").import_indexed();
+
         self.cube_static_indexed =
-            state.load_static_mesh_indexed(&vertices, &indices, Pipeline::Color);
+            state.load_static_mesh_indexed(&vertices, &indices, Pipeline::ColorLit);
 
         let data = importer::import_gltf("assets/Fox.glb").import();
         self.fox_static_raw = state.load_static_mesh(&data, Pipeline::Uv);
     }
 
     pub fn update(&mut self) {
-        self.t += 1.0 / 60.0;
+        self.t += 1.0 / 360.0;
     }
 
     pub fn draw(&self, state: &mut State) {
         state.push_matrix(Mat4::IDENTITY);
-        state.draw_tri_list(&self.immediate_cube, Pipeline::Color);
+        state.draw_tri_list(&self.immediate_cube, Pipeline::ColorLit);
 
         state.set_texture(self.tex_index);
         state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
@@ -69,9 +70,17 @@ impl Game {
 
         // Ambient Light
         state.push_light(&Light {
-            color_intensity: Vec4::splat(1.0),
+            color_intensity: Vec4::new(1.0, 1.0, 1.0, 0.01),
             position_range: Vec4::splat(-1.0),
             direction_angle: Vec4::ZERO,
         });
+
+        // Point Light
+        state.push_light(&Light {
+            color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            position_range: Vec4::new(0.0, 0.0, 0.0, 999.999),
+            direction_angle: Vec4::ZERO,
+        });
+
     }
 }

@@ -237,8 +237,18 @@ pub fn import_gltf(path: &str) -> Importer {
                 gltf::Semantic::Normals => {
                     let view: &[f32] = cast_slice(view);
 
-                    for n in view {
+                    println!("Generating Lighting Values...");
+                    for (index, n) in view.iter().enumerate() {
                         normals.push(*n);
+
+                        let light = match index % 3 {
+                            0 => 1.0,
+                            1 => 0.15,
+                            2 => 0.0,
+                            _ => unreachable!(),
+                        };
+
+                        lighting.push(light);
                     }
                 }
 

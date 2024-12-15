@@ -166,6 +166,30 @@ struct VertexColorLitOut {
     @location(4) lighting: vec3<f32>,
 };
 
+@vertex
+fn vs_color_lit(
+    model: VertexColorLitIn,
+    instance: InstanceInput,
+) -> VertexColorLitOut {
+    // TODO: Write This Shader!
+    var out: VertexColorLitOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+    out.color = model.color;
+    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
+    // TODO: Write This Shader!
+    return vec4<f32>(in.color, 1.0);
+}
+
 // Vertex UV + Lighting
 struct VertexUvLitIn {
     @location(0) position: vec3<f32>,
@@ -180,6 +204,30 @@ struct VertexUvLitOut {
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>,
 };
+
+@vertex
+fn vs_uv_lit(
+    model: VertexUvLitIn,
+    instance: InstanceInput,
+) -> VertexUvLitOut {
+    // TODO: Write This Shader!
+    var out: VertexUvLitOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+    out.uvs = model.uvs;
+    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
+    // TODO: Write This Shader!
+    return textureSample(t_diffuse, s_diffuse, in.uvs);
+}
 
 // Vertex Color + UV + Lighting
 struct VertexColorUvLitIn {
@@ -197,3 +245,29 @@ struct VertexColorUvLitOut {
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>,
 };
+
+@vertex
+fn vs_color_uv_lit(
+    model: VertexColorUvLitIn,
+    instance: InstanceInput,
+) -> VertexColorUvLitOut {
+    // TODO: Write This Shader!
+    var out: VertexColorUvLitOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+    out.color = model.color;
+    out.uvs = model.uvs;
+    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
+    // TODO: Write This Shader!
+    var texel = textureSample(t_diffuse, s_diffuse, in.uvs);
+    return vec4<f32>(in.color * texel.rgb, 1.0);
+}
