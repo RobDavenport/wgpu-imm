@@ -4,7 +4,8 @@ var<uniform> camera: Camera;
 
 struct Camera {
     position: vec4<f32>,
-    view_proj: mat4x4<f32>,
+    view: mat4x4<f32>,
+    proj: mat4x4<f32>,
 }
 
 // Texture Bindings
@@ -44,8 +45,8 @@ struct InstanceInput {
 //     @builtin(position) clip_position: vec4<f32>,
 //     @location(1) color: vec3<f32>,
 //     @location(2) uvs: vec2<f32>,
-//     @location(3) terms: vec4<f32>,,
-//     @location(4) lighting: vec3<f32>,
+//     @location(3) terms: vec4<f32>, // Lighting Terms
+//     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
 // };
 
 // Vertex Color
@@ -72,7 +73,7 @@ fn vs_color(
         instance.model_matrix_3,
     );
     out.color = model.color;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
 
@@ -105,7 +106,7 @@ fn vs_uv(
         instance.model_matrix_3,
     );
     out.uvs = model.uvs;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
 
@@ -141,7 +142,7 @@ fn vs_color_uv(
     );
     out.color = model.color;
     out.uvs = model.uvs;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
 
@@ -180,7 +181,7 @@ fn vs_color_lit(
         instance.model_matrix_3,
     );
     out.color = model.color;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
 
@@ -219,7 +220,7 @@ fn vs_uv_lit(
         instance.model_matrix_3,
     );
     out.uvs = model.uvs;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
 
@@ -246,6 +247,30 @@ struct VertexColorUvLitOut {
     @location(4) lighting: vec3<f32>,
 };
 
+// void vertex() {
+//     // Step 1: Transform the vertex and normals to world space
+//     vec3 world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+//     vec3 world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+
+// 	// Calculate view direction in world space
+//     vec3 viewDir = normalize(CAMERA_POSITION_WORLD - world_position);
+//     // Calculate light direction in world space
+//     vec3 lightDir = normalize(light_pos - world_position);
+// 	// Compute the half-vector for the Cook-Torrance model
+//     vec3 halfDir = normalize(viewDir + lightDir);
+
+//     //// Relevant dot products
+//     frag_NdotV = max(dot(world_normal, viewDir), 0.0);
+//     frag_NdotL = max(dot(world_normal, lightDir), 0.0);
+//     frag_NdotH = max(dot(world_normal, halfDir), 0.0);
+//     frag_VdotH = max(dot(viewDir, halfDir), 0.0);
+// 	frag_F0 = mix(0.04, 1.0, mat_metallic);  // 0.04 for dielectric, 1.0 for conductor (fully metallic)
+
+
+//     VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
+// 	NORMAL = normalize((MODELVIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+// }
+
 @vertex
 fn vs_color_uv_lit(
     model: VertexColorUvLitIn,
@@ -261,7 +286,7 @@ fn vs_color_uv_lit(
     );
     out.color = model.color;
     out.uvs = model.uvs;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
 

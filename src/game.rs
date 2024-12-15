@@ -81,6 +81,5 @@ impl Game {
             position_range: Vec4::new(0.0, 0.0, 0.0, 999.999),
             direction_angle: Vec4::ZERO,
         });
-
     }
 }

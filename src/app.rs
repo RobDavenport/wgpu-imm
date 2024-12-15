@@ -252,8 +252,8 @@ impl State {
         });
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("View Matrix Buffer"),
-            size: size_of::<CameraUniformType>() as u64, //20 floats
+            label: Some("Camera Buffer"),
+            size: size_of::<CameraUniformType>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
