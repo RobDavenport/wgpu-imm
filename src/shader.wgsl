@@ -157,8 +157,8 @@ fn vs_color_uv(
 
 @fragment
 fn fs_color_uv(in: VertexColorUvOut) -> @location(0) vec4<f32> {
-    var texel = textureSample(t_diffuse, s_diffuse, in.uvs);
-    return vec4<f32>(in.color * texel.rgb, 1.0);
+    var texel = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
+    return vec4<f32>(in.color * texel, 1.0);
 }
 
 // Vertex Color + Lighting
@@ -228,7 +228,7 @@ fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     terms[5] = in.terms_5;
     terms[6] = in.terms_6;
     terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(terms[0], frag_color, in.lighting);
+    let output_color = calculate_lighting_color(&terms, frag_color, in.lighting);
 
     return vec4<f32>(output_color, 1.0);
 }
@@ -284,7 +284,6 @@ fn vs_uv_lit(
     out.terms_7 = terms[7];
     out.lighting = model.lighting;
 
-
     out.uvs = model.uvs;
     out.clip_position = camera.proj * view_position;
     return out;
@@ -292,8 +291,20 @@ fn vs_uv_lit(
 
 @fragment
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
-    // TODO: Write This Shader!
-    return textureSample(t_diffuse, s_diffuse, in.uvs);
+    let frag_color = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
+
+    var terms: array<vec4<f32>, MAX_LIGHTS>;
+    terms[0] = in.terms_0;
+    terms[1] = in.terms_1;
+    terms[2] = in.terms_2;
+    terms[3] = in.terms_3;
+    terms[4] = in.terms_4;
+    terms[5] = in.terms_5;
+    terms[6] = in.terms_6;
+    terms[7] = in.terms_7;
+    let output_color = calculate_lighting_color(&terms, frag_color, in.lighting);
+
+    return vec4<f32>(output_color, 1.0);
 }
 
 // Vertex Color + UV + Lighting
@@ -357,9 +368,21 @@ fn vs_color_uv_lit(
 
 @fragment
 fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
-    // TODO: Write This Shader!
-    let texel = textureSample(t_diffuse, s_diffuse, in.uvs);
-    return vec4<f32>(in.color * texel.rgb, 1.0);
+    let texel = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
+    let frag_color = in.color * texel.rgb;
+
+    var terms: array<vec4<f32>, MAX_LIGHTS>;
+    terms[0] = in.terms_0;
+    terms[1] = in.terms_1;
+    terms[2] = in.terms_2;
+    terms[3] = in.terms_3;
+    terms[4] = in.terms_4;
+    terms[5] = in.terms_5;
+    terms[6] = in.terms_6;
+    terms[7] = in.terms_7;
+    let output_color = calculate_lighting_color(&terms, frag_color, in.lighting);
+
+    return vec4<f32>(output_color, 1.0);
 }
 
 // Lighting Parts
@@ -443,7 +466,7 @@ fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) ->
 }
 
 // Used in Fragment Shader
-fn calculate_lighting_color(terms: vec4<f32>, frag_color: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
+fn calculate_lighting_color(terms: ptr<function, array<vec4<f32>, MAX_LIGHTS>>, frag_color: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
     let metallic = lighting.r;
     let roughness = lighting.g;
     let emissive = lighting.b;
@@ -451,14 +474,16 @@ fn calculate_lighting_color(terms: vec4<f32>, frag_color: vec3<f32>, lighting: v
 
     var output_color = vec3<f32>(0.0);
 
-    //for (var i = 0; i < 1; i++) {
-        let term = LightingTerms(terms.x, terms.y, terms.z, terms.w);
-        let specular = cook_torrance_specular(lights[0].color_intensity.rgb, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
+    for (var i = 0; i < MAX_LIGHTS; i++) {
+        let term_ref = (*terms)[i];
+        let term = LightingTerms(term_ref.x, term_ref.y, term_ref.z, term_ref.w);
+        let light = lights[i];
+        let specular = cook_torrance_specular(light.color_intensity.rgb, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
         let diffuse = (1.0 - metallic) * term.n_dot_l;
-        let final_color = (1.0 - metallic) * diffuse * lights[0].color_intensity.rgb + specular;
+        let final_color = (1.0 - metallic) * diffuse * light.color_intensity.rgb + specular;
         let lit_color = frag_color * final_color;
         output_color += lit_color;
-    //}
+    }
 
     return output_color;
 }
