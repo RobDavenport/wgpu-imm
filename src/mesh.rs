@@ -9,7 +9,7 @@ pub struct Mesh {
 pub struct IndexedMesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
-    pub vertex_count: u32,
+    pub index_count: u32,
     pub pipeline: Pipeline,
 }
 

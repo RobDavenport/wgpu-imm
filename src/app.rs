@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use glam::{Mat4, Vec3A};
+use glam::{Mat4, Vec3A, Vec4Swizzles};
 use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
@@ -599,7 +599,7 @@ impl State {
                             wgpu::IndexFormat::Uint16,
                         );
                         render_pass.draw_indexed(
-                            0..mesh.vertex_count,
+                            0..mesh.index_count,
                             0,
                             current_model_matrix - 1..current_model_matrix,
                         );
@@ -643,6 +643,13 @@ impl State {
 
     pub fn push_light(&mut self, light: &Light) {
         let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
+        let mut light = light.clone();
+        let view_position = self.camera.get_view() * light.position_range.xyz().extend(1.0);
+        let view_direction = self.camera.get_view() * light.direction_angle.xyz().extend(0.0);
+
+        light.position_range = view_position.xyz().extend(light.position_range.w);
+        light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
+
         self.queue.write_buffer(
             &self.light_buffer,
             offset,
@@ -833,7 +840,7 @@ impl State {
             vertex_buffer,
             index_buffer,
             pipeline,
-            vertex_count: vertex_count as u32,
+            index_count: indices.len() as u32,
         };
 
         self.indexed_meshes.push(mesh);

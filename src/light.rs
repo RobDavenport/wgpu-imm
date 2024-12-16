@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Vec3, Vec4, Vec4Swizzles};
 
 pub type LightUniformType = [f32; 12];
-pub const MAX_LIGHTS: u64 = 16;
+pub const MAX_LIGHTS: u64 = 8;
 
 pub enum LightKind {
     Ambient,

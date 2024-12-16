@@ -1,4 +1,5 @@
 use bytemuck::{cast_slice, from_bytes};
+use gltf::accessor::{DataType, Dimensions};
 
 use crate::pipeline::Pipeline;
 
@@ -127,6 +128,8 @@ impl Importer {
         let import_uv = pipeline.has_uv();
         let import_lighting = pipeline.has_lighting();
 
+        println!("import lighting: {import_lighting}");
+
         if self.indices.is_empty() {
             println!("import_indexed_to_non_index called on a mesh without indices.");
             for n in 0..self.positions.len() / 3 {
@@ -170,6 +173,7 @@ impl Importer {
 }
 
 pub fn import_gltf(path: &str) -> Importer {
+    println!("Importing... {path}");
     let (document, buffers, _images) = gltf::import(path).unwrap();
 
     let blob = &buffers[0].0;
@@ -205,6 +209,12 @@ pub fn import_gltf(path: &str) -> Importer {
             let end = start + (attribute.count() * attribute.size());
             let view = &blob[start..end];
 
+            let skip = if attribute.dimensions() == Dimensions::Vec4 {
+                true
+            } else {
+                false
+            };
+
             match kind {
                 gltf::Semantic::Positions => {
                     let view: &[f32] = cast_slice(view);
@@ -214,18 +224,20 @@ pub fn import_gltf(path: &str) -> Importer {
                     }
                 }
                 gltf::Semantic::Colors(0) => {
-                    let view: &[f32] = cast_slice(view);
+                    write_from_view(attribute.data_type(), skip, view, &mut colors);
+                    // let view: &[f32] = cast_slice(view);
 
-                    for c in view {
-                        colors.push(*c);
-                    }
+                    // for c in view {
+                    //     colors.push(*c);
+                    // }
                 }
                 gltf::Semantic::Colors(1) => {
-                    let view: &[f32] = cast_slice(view);
+                    write_from_view(attribute.data_type(), skip, view, &mut lighting);
+                    // let view: &[f32] = cast_slice(view);
 
-                    for l in view {
-                        lighting.push(*l);
-                    }
+                    // for l in view {
+                    //     lighting.push(*l);
+                    // }
                 }
                 gltf::Semantic::TexCoords(_) => {
                     let view: &[f32] = cast_slice(view);
@@ -237,18 +249,18 @@ pub fn import_gltf(path: &str) -> Importer {
                 gltf::Semantic::Normals => {
                     let view: &[f32] = cast_slice(view);
 
-                    println!("Generating Lighting Values...");
+                    //println!("Generating Lighting Values...");
                     for (index, n) in view.iter().enumerate() {
                         normals.push(*n);
 
-                        let light = match index % 3 {
-                            0 => 1.0,
-                            1 => 0.15,
-                            2 => 0.0,
-                            _ => unreachable!(),
-                        };
+                        // let light = match index % 3 {
+                        //     0 => 1.0,
+                        //     1 => 0.15,
+                        //     2 => 0.0,
+                        //     _ => unreachable!(),
+                        // };
 
-                        lighting.push(light);
+                        // lighting.push(light);
                     }
                 }
 
@@ -257,6 +269,11 @@ pub fn import_gltf(path: &str) -> Importer {
         }
 
         if let Some(indices_accessor) = primitive.indices() {
+            println!(
+                "Found indices: {:?} x {:?}",
+                indices_accessor.data_type(),
+                indices_accessor.dimensions()
+            );
             let size = indices_accessor.size();
             let start = indices_accessor.offset() + indices_accessor.view().unwrap().offset();
             let count = indices_accessor.count();
@@ -283,5 +300,50 @@ pub fn import_gltf(path: &str) -> Importer {
         uvs,
         normals,
         lighting,
+    }
+}
+
+fn write_from_view(data_type: DataType, skip: bool, view: &[u8], target: &mut Vec<f32>) {
+    // Determine the maximum value for normalization and the number of bytes per element
+    let (max, chunks) = match data_type {
+        DataType::U8 => (u8::MAX as f32, 1),
+        DataType::U16 => (u16::MAX as f32, 2),
+        DataType::U32 => (u32::MAX as f32, 4),
+        DataType::F32 => (f32::MAX as f32, 4),
+        _ => panic!("Unhandled data type"),
+    };
+
+    // Iterate over the data in chunks
+    for (index, number) in view.chunks_exact(chunks).enumerate() {
+        if skip && (index + 1) % 4 == 0 {
+            continue;
+        }
+
+        let value = match data_type {
+            DataType::U8 => {
+                // Read a single byte and normalize
+                let value = number[0] as f32;
+                value / max
+            }
+            DataType::U16 => {
+                // Read two bytes as a u16 and normalize
+                let value = u16::from_le_bytes([number[0], number[1]]) as f32;
+                value / max
+            }
+            DataType::U32 => {
+                // Read four bytes as a u32 and normalize
+                let value = u32::from_le_bytes([number[0], number[1], number[2], number[3]]) as f32;
+                value / max
+            }
+            DataType::F32 => {
+                // Read four bytes as f32
+                let value = f32::from_le_bytes([number[0], number[1], number[2], number[3]]);
+                value // No normalization needed since it's already a float
+            }
+            _ => unreachable!(),
+        };
+
+        // Push the normalized value into the target vector
+        target.push(value);
     }
 }
