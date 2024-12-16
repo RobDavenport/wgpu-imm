@@ -655,6 +655,8 @@ impl State {
             offset,
             cast_slice(&light.get_light_uniforms()),
         );
+
+        self.virtual_render_pass.light_count += 1;
     }
 
     pub fn push_matrix(&mut self, matrix: Mat4) {

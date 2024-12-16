@@ -4,7 +4,7 @@ use crate::{
     light::Light,
     pipeline::Pipeline,
 };
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
 
 pub struct Game {
     t: f32,
@@ -58,7 +58,7 @@ impl Game {
     pub fn draw(&self, state: &mut State) {
         state.push_matrix(Mat4::IDENTITY);
 
-        state.push_matrix(Mat4::from_translation(Vec3::new(0.0, 1.0, 1.0)));
+        state.push_matrix(Mat4::from_translation(Vec3::new(0.0, 1.0, -2.0)));
         state.draw_static_mesh_indexed(self.test_sphere);
 
         // state.draw_tri_list(&self.immediate_cube, Pipeline::ColorLit);
@@ -79,19 +79,24 @@ impl Game {
         // state.draw_static_mesh(self.fox_static_raw);
 
         // Ambient Light
-        // state.push_light(&Light {
-        //     color_intensity: Vec4::new(1.0, 1.0, 1.0, 0.01),
-        //     position_range: Vec4::splat(-1.0),
-        //     direction_angle: Vec4::ZERO,
-        // });
-
-        let light_x = self.t.sin() * 2.0;
-
-        // Point Light
         state.push_light(&Light {
-            color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
-            position_range: Vec4::new(light_x, 0.0, 2.0, 1.0),
+            color_intensity: Vec4::new(1.0, 1.0, 1.0, 0.01),
+            position_range: Vec4::splat(-1.0),
             direction_angle: Vec4::ZERO,
         });
+
+        // Point Light
+        for n in 0..6 {
+            let light_x = self.t.sin() * 2.0;
+            let light_y = self.t.cos() * 2.0 * n as f32;
+            let light_offset = Vec4::new(light_x, light_y, 1.0, 1.0);
+            let modified_position =
+                Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
+            state.push_light(&Light {
+                color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                position_range: modified_position.xyz().extend(1.0),
+                direction_angle: Vec4::ZERO,
+            });
+        }
     }
 }

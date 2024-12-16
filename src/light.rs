@@ -21,7 +21,7 @@ pub struct Light {
 
 impl Light {
     pub fn get_kind(&self) -> LightKind {
-        let is_global = self.position_range.w <= 0.0;
+        let is_global = self.position_range.w < 0.0;
         let is_directional = self.direction_angle.xyz() != Vec3::ZERO;
 
         match (is_global, is_directional) {

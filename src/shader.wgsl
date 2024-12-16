@@ -443,10 +443,33 @@ fn cook_torrance_specular(
 // Used in Vertex Shader
 fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) -> array<vec4<f32>, MAX_LIGHTS> {
     var terms: array<vec4<f32>, MAX_LIGHTS>;
+    var light_dir: vec3<f32>;
 
     for (var i = 0; i < MAX_LIGHTS; i++) {
-        // Light direction in view space
-        let light_dir = normalize(lights[i].position_range.xyz - view_position.xyz);
+        let light = lights[i];
+
+        // Identify light type
+        if (light.position_range.w < 0.0) {
+            // Global Light (Ambient or Directional)
+
+            if (all(light.direction_angle.xyz == vec3<f32>(0.0))) {
+                continue; // Ambient light -- Do nothing
+            } else {
+                // Directional Light
+                light_dir = normalize(-light.direction_angle.xyz);
+            }
+        } else {
+            // Positional Light (Point or Spot)
+            light_dir = normalize(lights[i].position_range.xyz - view_position.xyz);
+
+            if (light.position_range.w > 0.0) {
+                // Spot light
+                let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
+                if (spot_factor < cos(light.direction_angle.w)) {
+                    continue; // Don't include this light in the calculation
+                }
+            }
+        }
 
         // View direction in view space
         let view_dir = normalize(-view_position.xyz);
@@ -478,11 +501,28 @@ fn calculate_lighting_color(terms: ptr<function, array<vec4<f32>, MAX_LIGHTS>>, 
         let term_ref = (*terms)[i];
         let term = LightingTerms(term_ref.x, term_ref.y, term_ref.z, term_ref.w);
         let light = lights[i];
-        let specular = cook_torrance_specular(light.color_intensity.rgb, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
-        let diffuse = (1.0 - metallic) * term.n_dot_l;
-        let final_color = (1.0 - metallic) * diffuse * light.color_intensity.rgb + specular;
-        let lit_color = frag_color * final_color;
-        output_color += lit_color;
+        let light_color = light.color_intensity.rgb * light.color_intensity.w;
+
+        // Identify light type
+        if (light.position_range.w < 0.0 && all(light.direction_angle.xyz == vec3<f32>(0.0))) {
+            // Ambient Light
+            output_color += frag_color * light_color;
+        } else {
+            let specular = cook_torrance_specular(light_color, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
+            let diffuse = (1.0 - metallic) * term.n_dot_l;
+            let final_color = (1.0 - metallic) * diffuse * light_color + specular;
+            let lit_color = frag_color * final_color;
+
+            if (light.position_range.w >= 0.0) {
+                // Spot or Point Light
+                // TODO!
+                // Calculate distance from light to this fragment
+                // Do distance falloff
+            }
+
+            output_color += lit_color;
+        }
+
     }
 
     return output_color;
