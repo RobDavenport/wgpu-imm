@@ -173,14 +173,15 @@ struct VertexColorLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(1) color: vec3<f32>,
     @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-    @location(9) terms_0: vec4<f32>, // Lighting Terms
-    @location(10) terms_1: vec4<f32>, // Lighting Terms
-    @location(11) terms_2: vec4<f32>, // Lighting Terms
-    @location(12) terms_3: vec4<f32>, // Lighting Terms
-    @location(13) terms_4: vec4<f32>, // Lighting Terms
-    @location(14) terms_5: vec4<f32>, // Lighting Terms
-    @location(15) terms_6: vec4<f32>, // Lighting Terms
-    @location(16) terms_7: vec4<f32>, // Lighting Terms
+    @location(9) view_pos: vec3<f32>,
+    @location(10) terms_0: vec4<f32>, // Lighting Terms
+    @location(11) terms_1: vec4<f32>,
+    @location(12) terms_2: vec4<f32>,
+    @location(13) terms_3: vec4<f32>,
+    @location(14) terms_4: vec4<f32>,
+    @location(15) terms_5: vec4<f32>,
+    @location(16) terms_6: vec4<f32>,
+    @location(17) terms_7: vec4<f32>,
 };
 
 @vertex
@@ -210,6 +211,7 @@ fn vs_color_lit(
     out.terms_6 = terms[6];
     out.terms_7 = terms[7];
     out.lighting = model.lighting;
+    out.view_pos = view_position.xyz;
 
     out.color = model.color;
     out.clip_position = camera.proj * view_position;
@@ -219,6 +221,7 @@ fn vs_color_lit(
 @fragment
 fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     let frag_color = in.color;
+
     var terms: array<vec4<f32>, MAX_LIGHTS>;
     terms[0] = in.terms_0;
     terms[1] = in.terms_1;
@@ -228,7 +231,7 @@ fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     terms[5] = in.terms_5;
     terms[6] = in.terms_6;
     terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(&terms, frag_color, in.lighting);
+    let output_color = calculate_lighting_color(&terms, in.view_pos, frag_color, in.lighting);
 
     return vec4<f32>(output_color, 1.0);
 }
@@ -245,14 +248,15 @@ struct VertexUvLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(2) uvs: vec2<f32>,
     @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-    @location(9) terms_0: vec4<f32>, // Lighting Terms
-    @location(10) terms_1: vec4<f32>, // Lighting Terms
-    @location(11) terms_2: vec4<f32>, // Lighting Terms
-    @location(12) terms_3: vec4<f32>, // Lighting Terms
-    @location(13) terms_4: vec4<f32>, // Lighting Terms
-    @location(14) terms_5: vec4<f32>, // Lighting Terms
-    @location(15) terms_6: vec4<f32>, // Lighting Terms
-    @location(16) terms_7: vec4<f32>, // Lighting Terms
+    @location(9) view_pos: vec3<f32>,
+    @location(10) terms_0: vec4<f32>, // Lighting Terms
+    @location(11) terms_1: vec4<f32>,
+    @location(12) terms_2: vec4<f32>,
+    @location(13) terms_3: vec4<f32>,
+    @location(14) terms_4: vec4<f32>,
+    @location(15) terms_5: vec4<f32>,
+    @location(16) terms_6: vec4<f32>,
+    @location(17) terms_7: vec4<f32>,
 };
 
 @vertex
@@ -283,6 +287,7 @@ fn vs_uv_lit(
     out.terms_6 = terms[6];
     out.terms_7 = terms[7];
     out.lighting = model.lighting;
+    out.view_pos = view_position.xyz;
 
     out.uvs = model.uvs;
     out.clip_position = camera.proj * view_position;
@@ -302,7 +307,7 @@ fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
     terms[5] = in.terms_5;
     terms[6] = in.terms_6;
     terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(&terms, frag_color, in.lighting);
+    let output_color = calculate_lighting_color(&terms, in.view_pos, frag_color, in.lighting);
 
     return vec4<f32>(output_color, 1.0);
 }
@@ -321,14 +326,15 @@ struct VertexColorUvLitOut {
     @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
     @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-    @location(9) terms_0: vec4<f32>, // Lighting Terms
-    @location(10) terms_1: vec4<f32>, // Lighting Terms
-    @location(11) terms_2: vec4<f32>, // Lighting Terms
-    @location(12) terms_3: vec4<f32>, // Lighting Terms
-    @location(13) terms_4: vec4<f32>, // Lighting Terms
-    @location(14) terms_5: vec4<f32>, // Lighting Terms
-    @location(15) terms_6: vec4<f32>, // Lighting Terms
-    @location(16) terms_7: vec4<f32>, // Lighting Terms
+    @location(9) view_pos: vec3<f32>,
+    @location(10) terms_0: vec4<f32>, // Lighting Terms
+    @location(11) terms_1: vec4<f32>,
+    @location(12) terms_2: vec4<f32>,
+    @location(13) terms_3: vec4<f32>,
+    @location(14) terms_4: vec4<f32>,
+    @location(15) terms_5: vec4<f32>,
+    @location(16) terms_6: vec4<f32>,
+    @location(17) terms_7: vec4<f32>,
 };
 
 @vertex
@@ -359,6 +365,7 @@ fn vs_color_uv_lit(
     out.terms_6 = terms[6];
     out.terms_7 = terms[7];
     out.lighting = model.lighting;
+    out.view_pos = view_position.xyz;
 
     out.color = model.color;
     out.uvs = model.uvs;
@@ -380,7 +387,7 @@ fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
     terms[5] = in.terms_5;
     terms[6] = in.terms_6;
     terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(&terms, frag_color, in.lighting);
+    let output_color = calculate_lighting_color(&terms, in.view_pos, frag_color, in.lighting);
 
     return vec4<f32>(output_color, 1.0);
 }
@@ -445,6 +452,9 @@ fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) ->
     var terms: array<vec4<f32>, MAX_LIGHTS>;
     var light_dir: vec3<f32>;
 
+    // View direction in view space
+    let view_dir = normalize(-view_position.xyz);
+
     for (var i = 0; i < MAX_LIGHTS; i++) {
         let light = lights[i];
 
@@ -460,7 +470,7 @@ fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) ->
             }
         } else {
             // Positional Light (Point or Spot)
-            light_dir = normalize(lights[i].position_range.xyz - view_position.xyz);
+            light_dir = normalize(light.position_range.xyz - view_position.xyz);
 
             if (light.position_range.w > 0.0) {
                 // Spot light
@@ -470,9 +480,6 @@ fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) ->
                 }
             }
         }
-
-        // View direction in view space
-        let view_dir = normalize(-view_position.xyz);
 
         // Half vector calculation
         let half_vec = normalize(view_dir + light_dir);
@@ -489,7 +496,12 @@ fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) ->
 }
 
 // Used in Fragment Shader
-fn calculate_lighting_color(terms: ptr<function, array<vec4<f32>, MAX_LIGHTS>>, frag_color: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
+fn calculate_lighting_color(
+    terms: ptr<function, array<vec4<f32>, MAX_LIGHTS>>,
+    frag_view_pos: vec3<f32>,
+    frag_color: vec3<f32>, 
+    lighting: vec3<f32>
+) -> vec3<f32> {
     let metallic = lighting.r;
     let roughness = lighting.g;
     let emissive = lighting.b;
@@ -508,6 +520,7 @@ fn calculate_lighting_color(terms: ptr<function, array<vec4<f32>, MAX_LIGHTS>>, 
             // Ambient Light
             output_color += frag_color * light_color;
         } else {
+            // Directional, Point, or Spot Light
             let specular = cook_torrance_specular(light_color, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
             let diffuse = (1.0 - metallic) * term.n_dot_l;
             let final_color = (1.0 - metallic) * diffuse * light_color + specular;
