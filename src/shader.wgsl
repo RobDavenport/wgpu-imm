@@ -416,9 +416,11 @@ fn d_ggx(n_dot_h: f32, roughness: f32) -> f32 {
 }
 
 // Geometry function using Smith's Schlick-GGX
-fn g_schlick_ggx(n_dot_v: f32, roughness: f32) -> f32 {
-    let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-    return n_dot_v / (n_dot_v * (1.0 - k) + k);
+fn g_schlick_ggx(n_dot_l: f32, n_dot_v: f32, roughness: f32) -> f32 {
+    let k = roughness / 2.0;
+    let smith_l = n_dot_l / (n_dot_l * (1.0 - k) + k);
+    let smith_v = n_dot_v / (n_dot_v * (1.0 - k) + k);
+    return smith_l * smith_v;
 }
 
 // Cook-Torrance BRDF
@@ -438,7 +440,7 @@ fn cook_torrance_specular(
     let d = d_ggx(n_dot_h, roughness);
 
     // Geometry function (Smith's Schlick-GGX)
-    let g = g_schlick_ggx(n_dot_v, roughness) * g_schlick_ggx(n_dot_l, roughness);
+    let g = g_schlick_ggx(n_dot_l, n_dot_v, roughness);
 
     // Cook-Torrance denominator
     let denom = 4.0 * n_dot_v * n_dot_l + 0.001; // Avoid division by zero
@@ -507,7 +509,7 @@ fn calculate_lighting_color(
     let emissive = lighting.b;
     let f_0 = mix(0.04, 1.0, metallic);
 
-    var output_color = vec3<f32>(0.0);
+    var output_color = frag_color * emissive;
 
     for (var i = 0; i < MAX_LIGHTS; i++) {
         let term_ref = (*terms)[i];
@@ -523,7 +525,7 @@ fn calculate_lighting_color(
             // Directional, Point, or Spot Light
             let specular = cook_torrance_specular(light_color, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
             let diffuse = (1.0 - metallic) * term.n_dot_l;
-            let final_color = (1.0 - metallic) * diffuse * light_color + specular;
+            let final_color = diffuse * light_color + specular;
             let lit_color = frag_color * final_color;
 
             if (light.position_range.w >= 0.0) {
