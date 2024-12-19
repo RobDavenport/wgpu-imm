@@ -402,9 +402,9 @@ struct LightingTerms {
     v_dot_h: f32,
 }
 
-fn fresnel_schlick(cos_theta: f32, f_0: f32) -> f32 {
-    let cos_theta_clamped = clamp(cos_theta, 0.001, 1.0); // Avoid exactly zero or negative values
-    return f_0 + (1.0 - f_0) * pow(1.0 - cos_theta_clamped, 5.0);
+fn f_unreal(v_dot_h: f32, f_0: f32) -> f32 {
+    let exponent = ((-5.55473 * v_dot_h) - 6.98316) * v_dot_h;
+    return f_0 + ((1.0 - f_0) * pow(2.0, exponent));
 }
 
 // GGX / Trowbridge-Reitz Normal Distribution Function
@@ -434,7 +434,7 @@ fn cook_torrance_specular(
     f_0: f32,
 ) -> vec3<f32> {
     // Fresnel term (Schlick approximation)
-    let f = fresnel_schlick(v_dot_h, f_0);
+    let f = f_unreal(v_dot_h, f_0);
 
     // Normal distribution function (GGX)
     let d = d_ggx(n_dot_h, roughness);

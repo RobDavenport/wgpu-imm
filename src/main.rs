@@ -8,6 +8,7 @@ mod importer;
 mod light;
 mod mesh;
 mod pipeline;
+mod spec_tex;
 mod texture;
 mod vertex;
 mod virtual_gpu;
@@ -18,7 +19,9 @@ use app::StateApplication;
 fn main() {
     env_logger::init();
 
-    block_on(run());
+    spec_tex::generate_texture();
+
+    //block_on(run());
 }
 
 pub async fn run() {

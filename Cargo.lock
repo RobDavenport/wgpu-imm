@@ -2714,6 +2714,7 @@ dependencies = [
  "gltf",
  "image",
  "pollster",
+ "rayon",
  "wgpu",
  "winit",
 ]
