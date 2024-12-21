@@ -308,6 +308,8 @@ fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
 }
 
 // Lighting Parts
+
+// Source:
 // https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
 fn f_unreal(f_0: vec3<f32>, v_dot_h: f32) -> vec3<f32> {
     let exponent = ((-5.55473 * v_dot_h) - 6.98316) * v_dot_h;
@@ -319,6 +321,8 @@ fn roughness_to_shininess(roughness: f32) -> f32 {
     return shininess;
 }
 
+// Source:
+// https://research.tri-ace.com/Data/course_note_practical_implementation_at_triace.pdf
 fn normalize_shininess(shininess: f32) -> f32 {
     return (0.0397436 * shininess) + 0.0856832;
 }
@@ -376,6 +380,7 @@ fn calculate_light(
     return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
 }
 
+// Based off of the version below
 fn tri_ace_ambient(
     albedo: vec3<f32>,
     light_color: vec3<f32>,
@@ -394,6 +399,8 @@ fn tri_ace_ambient(
     return (specular + diffuse) * light_color;
 }
 
+// Shader Implementation Reference:
+// https://research.tri-ace.com/Data/course_note_practical_implementation_at_triace.pdf
 fn tri_ace_directional(
     texel_color: vec3<f32>,
     light_color: vec3<f32>,
