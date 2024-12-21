@@ -22,12 +22,12 @@ impl Game {
     pub fn new() -> Self {
         // let immediate_cube =
         //     importer::import_gltf("assets/BoxVertexColors.glb").import_indexed_to_non_indexed();
-        // let immediate_fox = importer::import_gltf("assets/Fox.glb").import();
+        let immediate_fox = importer::import_gltf("assets/Fox.glb").import(Pipeline::Uv);
 
         Self {
             t: 0.0,
             immediate_cube: Vec::new(),
-            immediate_fox: Vec::new(),
+            immediate_fox,
             tex_index: 0,
             cube_static_indexed: 0,
             fox_static_raw: 0,
@@ -36,7 +36,7 @@ impl Game {
     }
 
     pub fn init(&mut self, state: &mut State) {
-        // self.tex_index = state.load_texture("assets/Fox.png");
+        self.tex_index = state.load_texture("assets/Fox.png");
         // let (vertices, indices) =
         //     importer::import_gltf("assets/BoxVertexColors.glb").import_indexed();
 
@@ -63,9 +63,9 @@ impl Game {
 
         // state.draw_tri_list(&self.immediate_cube, Pipeline::ColorLit);
 
-        // state.set_texture(self.tex_index);
-        // state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
-        // state.draw_tri_list(&self.immediate_fox, Pipeline::Uv);
+        state.set_texture(self.tex_index);
+        state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
+        state.draw_tri_list(&self.immediate_fox, Pipeline::Uv);
 
         // let cube_transform =
         //     Mat4::from_translation(Vec3::new(-3.0, 0.0, 0.0)) * Mat4::from_rotation_y(self.t);
