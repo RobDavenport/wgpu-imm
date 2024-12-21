@@ -4,6 +4,7 @@ Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
 - Add 2d quad rendering
+- Fix camera stuff (pos or negative z axis confusion)
 
 TODO:
 - Improve Lighting
