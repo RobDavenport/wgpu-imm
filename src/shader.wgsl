@@ -1,5 +1,8 @@
 // Consts
 const MAX_LIGHTS = 8;
+const PI = radians(180.0);
+const INV_PI = 1.0 / PI;
+const MAX_SHININESS = 2048.0;
 
 // Uniforms
 @group(0) @binding(0)
@@ -47,15 +50,9 @@ struct InstanceInput {
 //     @builtin(position) clip_position: vec4<f32>,
 //     @location(1) color: vec3<f32>,
 //     @location(2) uvs: vec2<f32>,
-//     @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-//     @location(9) terms_0: vec4<f32>, // Lighting Terms
-//     @location(10) terms_1: vec4<f32>, // Lighting Terms
-//     @location(11) terms_2: vec4<f32>, // Lighting Terms
-//     @location(12) terms_3: vec4<f32>, // Lighting Terms
-//     @location(13) terms_4: vec4<f32>, // Lighting Terms
-//     @location(14) terms_5: vec4<f32>, // Lighting Terms
-//     @location(15) terms_6: vec4<f32>, // Lighting Terms
-//     @location(16) terms_7: vec4<f32>, // Lighting Terms
+//     @location(3) normals: vec3<f32>,
+//     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
+//     @location(9) view_pos: vec3<f32>,
 // };
 
 // Vertex Color
@@ -166,22 +163,15 @@ struct VertexColorLitIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(3) normals: vec3<f32>,
-    @location(4) lighting: vec3<f32>,
+    @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
 };
 
 struct VertexColorLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(1) color: vec3<f32>,
-    @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-    @location(9) view_pos: vec3<f32>,
-    @location(10) terms_0: vec4<f32>, // Lighting Terms
-    @location(11) terms_1: vec4<f32>,
-    @location(12) terms_2: vec4<f32>,
-    @location(13) terms_3: vec4<f32>,
-    @location(14) terms_4: vec4<f32>,
-    @location(15) terms_5: vec4<f32>,
-    @location(16) terms_6: vec4<f32>,
-    @location(17) terms_7: vec4<f32>,
+    @location(3) normals: vec3<f32>,
+    @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
+    @location(0) view_pos: vec3<f32>,
 };
 
 @vertex
@@ -197,24 +187,14 @@ fn vs_color_lit(
         instance.model_matrix_3,
     );
 
-    // Transform position and normal to view space
     let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
-    let view_normal = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
 
-    let terms = calculate_lighting_terms(view_position.xyz, view_normal.xyz);
-    out.terms_0 = terms[0];
-    out.terms_1 = terms[1];
-    out.terms_2 = terms[2];
-    out.terms_3 = terms[3];
-    out.terms_4 = terms[4];
-    out.terms_5 = terms[5];
-    out.terms_6 = terms[6];
-    out.terms_7 = terms[7];
-    out.lighting = model.lighting;
-    out.view_pos = view_position.xyz;
-
-    out.color = model.color;
     out.clip_position = camera.proj * view_position;
+    out.color = model.color;
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.view_pos = view_position.xyz;
+    out.lighting = model.lighting;
+
     return out;
 }
 
@@ -222,17 +202,7 @@ fn vs_color_lit(
 fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     let frag_color = in.color;
 
-    var terms: array<vec4<f32>, MAX_LIGHTS>;
-    terms[0] = in.terms_0;
-    terms[1] = in.terms_1;
-    terms[2] = in.terms_2;
-    terms[3] = in.terms_3;
-    terms[4] = in.terms_4;
-    terms[5] = in.terms_5;
-    terms[6] = in.terms_6;
-    terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(&terms, in.view_pos, frag_color, in.lighting);
-
+    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -247,16 +217,9 @@ struct VertexUvLitIn {
 struct VertexUvLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(2) uvs: vec2<f32>,
-    @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-    @location(9) view_pos: vec3<f32>,
-    @location(10) terms_0: vec4<f32>, // Lighting Terms
-    @location(11) terms_1: vec4<f32>,
-    @location(12) terms_2: vec4<f32>,
-    @location(13) terms_3: vec4<f32>,
-    @location(14) terms_4: vec4<f32>,
-    @location(15) terms_5: vec4<f32>,
-    @location(16) terms_6: vec4<f32>,
-    @location(17) terms_7: vec4<f32>,
+    @location(3) normals: vec3<f32>,
+    @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
+    @location(0) view_pos: vec3<f32>,
 };
 
 @vertex
@@ -273,24 +236,14 @@ fn vs_uv_lit(
         instance.model_matrix_3,
     );
 
-    // Transform position and normal to view space
     let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
-    let view_normal = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
-
-    let terms = calculate_lighting_terms(view_position.xyz, view_normal.xyz);
-    out.terms_0 = terms[0];
-    out.terms_1 = terms[1];
-    out.terms_2 = terms[2];
-    out.terms_3 = terms[3];
-    out.terms_4 = terms[4];
-    out.terms_5 = terms[5];
-    out.terms_6 = terms[6];
-    out.terms_7 = terms[7];
-    out.lighting = model.lighting;
-    out.view_pos = view_position.xyz;
 
     out.uvs = model.uvs;
     out.clip_position = camera.proj * view_position;
+    out.view_pos = view_position.xyz;
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.lighting = model.lighting;
+
     return out;
 }
 
@@ -298,17 +251,7 @@ fn vs_uv_lit(
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
     let frag_color = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
 
-    var terms: array<vec4<f32>, MAX_LIGHTS>;
-    terms[0] = in.terms_0;
-    terms[1] = in.terms_1;
-    terms[2] = in.terms_2;
-    terms[3] = in.terms_3;
-    terms[4] = in.terms_4;
-    terms[5] = in.terms_5;
-    terms[6] = in.terms_6;
-    terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(&terms, in.view_pos, frag_color, in.lighting);
-
+    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -325,16 +268,9 @@ struct VertexColorUvLitOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
-    @location(3) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-    @location(9) view_pos: vec3<f32>,
-    @location(10) terms_0: vec4<f32>, // Lighting Terms
-    @location(11) terms_1: vec4<f32>,
-    @location(12) terms_2: vec4<f32>,
-    @location(13) terms_3: vec4<f32>,
-    @location(14) terms_4: vec4<f32>,
-    @location(15) terms_5: vec4<f32>,
-    @location(16) terms_6: vec4<f32>,
-    @location(17) terms_7: vec4<f32>,
+    @location(3) normals: vec3<f32>,
+    @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
+    @location(0) view_pos: vec3<f32>,
 };
 
 @vertex
@@ -342,7 +278,6 @@ fn vs_color_uv_lit(
     model: VertexColorUvLitIn,
     instance: InstanceInput,
 ) -> VertexColorUvLitOut {
-    // TODO: Write This Shader!
     var out: VertexColorUvLitOut;
     let model_matrix = mat4x4<f32>(
         instance.model_matrix_0,
@@ -351,25 +286,15 @@ fn vs_color_uv_lit(
         instance.model_matrix_3,
     );
 
-    // Transform position and normal to view space
     let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
-    let view_normal = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
-
-    let terms = calculate_lighting_terms(view_position.xyz, view_normal.xyz);
-    out.terms_0 = terms[0];
-    out.terms_1 = terms[1];
-    out.terms_2 = terms[2];
-    out.terms_3 = terms[3];
-    out.terms_4 = terms[4];
-    out.terms_5 = terms[5];
-    out.terms_6 = terms[6];
-    out.terms_7 = terms[7];
-    out.lighting = model.lighting;
-    out.view_pos = view_position.xyz;
 
     out.color = model.color;
     out.uvs = model.uvs;
     out.clip_position = camera.proj * view_position;
+    out.view_pos = view_position.xyz;
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.lighting = model.lighting;
+
     return out;
 }
 
@@ -378,166 +303,139 @@ fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
     let texel = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
     let frag_color = in.color * texel.rgb;
 
-    var terms: array<vec4<f32>, MAX_LIGHTS>;
-    terms[0] = in.terms_0;
-    terms[1] = in.terms_1;
-    terms[2] = in.terms_2;
-    terms[3] = in.terms_3;
-    terms[4] = in.terms_4;
-    terms[5] = in.terms_5;
-    terms[6] = in.terms_6;
-    terms[7] = in.terms_7;
-    let output_color = calculate_lighting_color(&terms, in.view_pos, frag_color, in.lighting);
-
+    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
 // Lighting Parts
-const PI = radians(180.0);
-
-struct LightingTerms {
-    n_dot_v: f32,
-    n_dot_l: f32,
-    n_dot_h: f32,
-    v_dot_h: f32,
-}
-
-fn f_unreal(v_dot_h: f32, f_0: f32) -> f32 {
+// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+fn f_unreal(f_0: vec3<f32>, v_dot_h: f32) -> vec3<f32> {
     let exponent = ((-5.55473 * v_dot_h) - 6.98316) * v_dot_h;
     return f_0 + ((1.0 - f_0) * pow(2.0, exponent));
 }
 
-// GGX / Trowbridge-Reitz Normal Distribution Function
-fn d_ggx(n_dot_h: f32, roughness: f32) -> f32 {
-    let alpha = roughness * roughness;
-    let alpha2 = alpha * alpha;
-    let denom = (n_dot_h * n_dot_h) * (alpha2 - 1.0) + 1.0;
-    return alpha2 / (PI * denom * denom);
+fn roughness_to_shininess(roughness: f32) -> f32 {
+    let shininess = pow(MAX_SHININESS, 1.0 - roughness);
+    return shininess;
 }
 
-// Geometry function using Smith's Schlick-GGX
-fn g_schlick_ggx(n_dot_l: f32, n_dot_v: f32, roughness: f32) -> f32 {
-    let k = roughness / 2.0;
-    let smith_l = n_dot_l / (n_dot_l * (1.0 - k) + k);
-    let smith_v = n_dot_v / (n_dot_v * (1.0 - k) + k);
-    return smith_l * smith_v;
+fn normalize_shininess(shininess: f32) -> f32 {
+    return (0.0397436 * shininess) + 0.0856832;
 }
 
-// Cook-Torrance BRDF
-fn cook_torrance_specular(
-    light_color: vec3<f32>,
-    n_dot_l: f32,
-    n_dot_v: f32,
-    n_dot_h: f32,
-    v_dot_h: f32,
+fn calculate_light(
+    albedo: vec3<f32>,
+    metallic: f32,
     roughness: f32,
-    f_0: f32,
+    view_position: vec3<f32>,
+    view_normal: vec3<f32>,
+    light: Light
 ) -> vec3<f32> {
-    // Fresnel term (Schlick approximation)
-    let f = f_unreal(v_dot_h, f_0);
-
-    // Normal distribution function (GGX)
-    let d = d_ggx(n_dot_h, roughness);
-
-    // Geometry function (Smith's Schlick-GGX)
-    let g = g_schlick_ggx(n_dot_l, n_dot_v, roughness);
-
-    // Cook-Torrance denominator
-    let denom = 4.0 * n_dot_v * n_dot_l + 0.001; // Avoid division by zero
-
-    // Final Cook-Torrance specular term
-    return (d * g * f) / denom * light_color;
-}
-
-// Used in Vertex Shader
-fn calculate_lighting_terms(view_position: vec3<f32>, view_normal: vec3<f32>) -> array<vec4<f32>, MAX_LIGHTS> {
-    var terms: array<vec4<f32>, MAX_LIGHTS>;
+    var terms: vec4<f32>;
     var light_dir: vec3<f32>;
 
     // View direction in view space
-    let view_dir = normalize(-view_position.xyz);
+    let view_dir = normalize(-view_position);
+    let n_dot_v = max(dot(view_normal, view_dir), 0.0);
 
-    for (var i = 0; i < MAX_LIGHTS; i++) {
-        let light = lights[i];
+    // Identify light type
+    if light.position_range.w < 0.0 {
+        // Global Light (Ambient or Directional)
 
-        // Identify light type
-        if (light.position_range.w < 0.0) {
-            // Global Light (Ambient or Directional)
-
-            if (all(light.direction_angle.xyz == vec3<f32>(0.0))) {
-                continue; // Ambient light -- Do nothing
-            } else {
-                // Directional Light
-                light_dir = normalize(-light.direction_angle.xyz);
-            }
+        if all(light.direction_angle.xyz == vec3<f32>(0.0)) {
+            let light_color = light.color_intensity.rgb * light.color_intensity.w;
+            return tri_ace_ambient(albedo, light_color, metallic, n_dot_v);
         } else {
-            // Positional Light (Point or Spot)
-            light_dir = normalize(light.position_range.xyz - view_position.xyz);
+            // Directional Light
+            light_dir = normalize(-light.direction_angle.xyz);
+        }
+    } else {
+        // Positional Light (Point or Spot)
+        light_dir = normalize(light.position_range.xyz - view_position);
 
-            if (light.position_range.w > 0.0) {
-                // Spot light
-                let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
-                if (spot_factor < cos(light.direction_angle.w)) {
-                    continue; // Don't include this light in the calculation
-                }
+        if light.position_range.w > 0.0 {
+            // Spot light
+            // TODO: Handle This...
+            let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
+            if spot_factor < cos(light.direction_angle.w) {
+                // Don't include this light in the calculation
+                return vec3<f32>(0.0);
             }
         }
-
-        // Half vector calculation
-        let half_vec = normalize(view_dir + light_dir);
-
-        let n_dot_v = max(dot(view_normal, view_dir), 0.0);
-        let n_dot_l = max(dot(view_normal, light_dir), 0.0);
-        let n_dot_h = max(dot(view_normal, half_vec), 0.0);
-        let v_dot_h = max(dot(view_dir, half_vec), 0.0);
-
-        terms[i] = vec4<f32>(n_dot_v, n_dot_l, n_dot_h, v_dot_h);
     }
 
-    return terms;
+    // Half vector calculation
+    let half_vec = normalize(view_dir + light_dir);
+    let n_dot_l = max(dot(view_normal, light_dir), 0.0);
+    let n_dot_h = max(dot(view_normal, half_vec), 0.0);
+    let v_dot_h = max(dot(view_dir, half_vec), 0.0);
+
+    terms = vec4<f32>(n_dot_v, n_dot_l, n_dot_h, v_dot_h);
+
+    let light_color = light.color_intensity.rgb * light.color_intensity.w;
+    return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
 }
 
-// Used in Fragment Shader
-fn calculate_lighting_color(
-    terms: ptr<function, array<vec4<f32>, MAX_LIGHTS>>,
-    frag_view_pos: vec3<f32>,
-    frag_color: vec3<f32>, 
-    lighting: vec3<f32>
+fn tri_ace_ambient(
+    albedo: vec3<f32>,
+    light_color: vec3<f32>,
+    metallic: f32,
+    n_dot_v: f32,
 ) -> vec3<f32> {
+    // Set Up Colors
+    let diffuse_color = (1.0 - metallic) * albedo; // Non-metallic materials will use diffuse color
+    let f_0 = mix(vec3(0.04), albedo, metallic); // This becomes the specular color
+
+    // Specular Term
+    let f = f_unreal(f_0, n_dot_v);
+    let specular = (f * f_0) * INV_PI; // Divide it by PI, since it's "diffuse"
+    let diffuse = (diffuse_color * INV_PI) * (1.0 - f_0);
+
+    return (specular + diffuse) * light_color;
+}
+
+fn tri_ace_directional(
+    texel_color: vec3<f32>,
+    light_color: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    terms: vec4<f32>,
+) -> vec3<f32> {
+    let n_dot_v = terms[0];
+    let n_dot_l = terms[1];
+    let n_dot_h = terms[2];
+    let v_dot_h = terms[3];
+
+    let shininess = roughness_to_shininess(roughness);
+
+    // Set Up Colors
+    let diffuse_color = (1.0 - metallic) * texel_color * light_color; // Non-metallic materials will use diffuse color
+    let f_0 = mix(vec3(0.04), texel_color, metallic); // This becomes the specular color
+
+    // Diffuse Term
+    let diffuse = (diffuse_color * INV_PI) * (1.0 - f_0);
+
+    // Specular Term
+    let f = f_unreal(f_0, v_dot_h);
+    let top = f * f_0 * pow(n_dot_h, shininess);
+    let bot = max(n_dot_l, n_dot_v);
+    let specular = normalize_shininess(shininess) * (top / bot) * light_color;
+
+    return (diffuse + specular) * n_dot_l;
+}
+
+fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
     let metallic = lighting.r;
     let roughness = lighting.g;
     let emissive = lighting.b;
-    let f_0 = mix(0.04, 1.0, metallic);
 
-    var output_color = frag_color * emissive;
+    var output_color = albedo * emissive; // Emissive Factor
+    let n_normal = normalize(normal);
 
     for (var i = 0; i < MAX_LIGHTS; i++) {
-        let term_ref = (*terms)[i];
-        let term = LightingTerms(term_ref.x, term_ref.y, term_ref.z, term_ref.w);
-        let light = lights[i];
-        let light_color = light.color_intensity.rgb * light.color_intensity.w;
+        let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i]);
 
-        // Identify light type
-        if (light.position_range.w < 0.0 && all(light.direction_angle.xyz == vec3<f32>(0.0))) {
-            // Ambient Light
-            output_color += frag_color * light_color;
-        } else {
-            // Directional, Point, or Spot Light
-            let specular = cook_torrance_specular(light_color, term.n_dot_l, term.n_dot_v, term.n_dot_h, term.v_dot_h, roughness, f_0);
-            let diffuse = (1.0 - metallic) * term.n_dot_l;
-            let final_color = diffuse * light_color + specular;
-            let lit_color = frag_color * final_color;
-
-            if (light.position_range.w >= 0.0) {
-                // Spot or Point Light
-                // TODO!
-                // Calculate distance from light to this fragment
-                // Do distance falloff
-            }
-
-            output_color += lit_color;
-        }
-
+        output_color += l;
     }
 
     return output_color;

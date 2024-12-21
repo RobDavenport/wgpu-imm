@@ -19,9 +19,9 @@ use app::StateApplication;
 fn main() {
     env_logger::init();
 
-    spec_tex::generate_texture();
+    //spec_tex::generate_texture();
 
-    //block_on(run());
+    block_on(run());
 }
 
 pub async fn run() {

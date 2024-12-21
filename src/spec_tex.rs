@@ -46,9 +46,6 @@ fn precompute_brdf(
     for v in 0..resolution_v {
         let roughness = (v as f32) / (resolution_v as f32 - 1.0); // V corresponds to roughness
         let shininess = 2048.0f32.powf(1.0 - roughness); // MAX SHININESS
-        let shininiess_normalization = ((shininess + 2.0) * (shininess + 4.0))
-            / (8.0 * PI * (2.0f32.powf(-shininess * 0.5) + shininess));
-        let shininess = shininess * shininiess_normalization;
 
         for u in 0..resolution_u {
             let normal = generate_normal(u, resolution_u);
@@ -62,14 +59,14 @@ fn precompute_brdf(
                 let n_dot_h = Vec3::dot(normal, half_dir).max(0.0);
                 let v_dot_h = Vec3::dot(view_dir, half_dir).max(0.0);
 
-                let diffuse_color = 1.0 - metallic;
-                let diffuse = (diffuse_color / PI) * (1.0 - f0);
+                // let diffuse_color = 1.0 - metallic;
+                // let diffuse = (diffuse_color / PI) * (1.0 - f0);
 
                 let fresnel = f_unreal(f0, v_dot_h);
                 let top = fresnel * f0 * n_dot_h.powf(shininess);
                 let bottom = n_dot_l.max(n_dot_v);
                 let specular = normal_approx(shininess) * (top / bottom);
-                specular_sum += specular + diffuse;
+                specular_sum += specular;
             }
 
             // Average the samples and store in the texture

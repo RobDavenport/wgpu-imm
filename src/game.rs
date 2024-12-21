@@ -43,8 +43,8 @@ impl Game {
         // self.cube_static_indexed =
         //     state.load_static_mesh_indexed(&vertices, &indices, Pipeline::ColorLit);
 
-        let (vertices, indices) =
-            importer::import_gltf("assets/test sphere metallic.glb").import_indexed();
+        let (vertices, indices) = importer::import_gltf("assets/test sphere metallic.glb")
+            .import_indexed(Pipeline::ColorLit);
         self.test_sphere = state.load_static_mesh_indexed(&vertices, &indices, Pipeline::ColorLit);
 
         // let data = importer::import_gltf("assets/Fox.glb").import();
@@ -80,10 +80,16 @@ impl Game {
 
         // Ambient Light
         state.push_light(&Light {
-            color_intensity: Vec4::new(1.0, 1.0, 1.0, 0.01),
+            color_intensity: Vec4::new(1.0, 1.0, 1.0, 0.05),
             position_range: Vec4::splat(-1.0),
             direction_angle: Vec4::ZERO,
         });
+
+        // state.push_light(&Light {
+        //     color_intensity: Vec4::splat(1.0),
+        //     position_range: Vec4::splat(1.0),
+        //     direction_angle: Vec4::ZERO,
+        // });
 
         // Point Light
         for n in 0..6 {

@@ -69,16 +69,23 @@ impl Importer {
         }
     }
 
-    pub fn import(mut self) -> Vec<f32> {
+    pub fn import(mut self, target_pipeline: Pipeline) -> Vec<f32> {
         let mut out = Vec::new();
 
         self.clean_up_buffers();
 
-        let pipeline = if let Some(pipeline) = self.get_pipeline() {
+        let import_pipeline = if let Some(pipeline) = self.get_pipeline() {
             println!("Importing pipeline: {:?}", pipeline);
             pipeline
         } else {
             println!("Invalid import.");
+            return out;
+        };
+
+        let pipeline = if import_pipeline.can_reduce(target_pipeline) {
+            target_pipeline
+        } else {
+            println!("Can't reduce {import_pipeline:?} to {target_pipeline:?}");
             return out;
         };
 
@@ -163,12 +170,12 @@ impl Importer {
         out
     }
 
-    pub fn import_indexed(self) -> (Vec<f32>, Vec<u16>) {
+    pub fn import_indexed(self, pipeline: Pipeline) -> (Vec<f32>, Vec<u16>) {
         if self.indices.is_empty() {
             panic!("No indices found, use import instead")
         }
         let indices = self.indices.clone();
-        (self.import(), indices)
+        (self.import(pipeline), indices)
     }
 }
 
@@ -249,18 +256,8 @@ pub fn import_gltf(path: &str) -> Importer {
                 gltf::Semantic::Normals => {
                     let view: &[f32] = cast_slice(view);
 
-                    //println!("Generating Lighting Values...");
-                    for (index, n) in view.iter().enumerate() {
+                    for n in view.iter() {
                         normals.push(*n);
-
-                        // let light = match index % 3 {
-                        //     0 => 1.0,
-                        //     1 => 0.15,
-                        //     2 => 0.0,
-                        //     _ => unreachable!(),
-                        // };
-
-                        // lighting.push(light);
                     }
                 }
 
@@ -309,7 +306,7 @@ fn write_from_view(data_type: DataType, skip: bool, view: &[u8], target: &mut Ve
         DataType::U8 => (u8::MAX as f32, 1),
         DataType::U16 => (u16::MAX as f32, 2),
         DataType::U32 => (u32::MAX as f32, 4),
-        DataType::F32 => (f32::MAX as f32, 4),
+        DataType::F32 => (1.0, 4),
         _ => panic!("Unhandled data type"),
     };
 
@@ -326,20 +323,15 @@ fn write_from_view(data_type: DataType, skip: bool, view: &[u8], target: &mut Ve
                 value / max
             }
             DataType::U16 => {
-                // Read two bytes as a u16 and normalize
-                let value = u16::from_le_bytes([number[0], number[1]]) as f32;
-                value / max
+                let value: u16 = *from_bytes(number);
+                value as f32 / max
             }
             DataType::U32 => {
                 // Read four bytes as a u32 and normalize
-                let value = u32::from_le_bytes([number[0], number[1], number[2], number[3]]) as f32;
-                value / max
+                let value: u32 = *from_bytes(number);
+                value as f32 / max
             }
-            DataType::F32 => {
-                // Read four bytes as f32
-                let value = f32::from_le_bytes([number[0], number[1], number[2], number[3]]);
-                value // No normalization needed since it's already a float
-            }
+            DataType::F32 => *from_bytes(number),
             _ => unreachable!(),
         };
 

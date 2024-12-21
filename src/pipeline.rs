@@ -44,6 +44,14 @@ impl Pipeline {
         }
     }
 
+    pub fn can_reduce(&self, into: Self) -> bool {
+        let color = !into.has_color() || self.has_color();
+        let uv = !into.has_uv() || self.has_uv();
+        let lighting = !into.has_lighting() || self.has_lighting();
+
+        color && uv && lighting
+    }
+
     pub fn get_pipeline_buffers(&self) -> [wgpu::VertexBufferLayout<'static>; 2] {
         [self.get_vertex_buffer_layout(), vertex::model_matrix()]
     }
