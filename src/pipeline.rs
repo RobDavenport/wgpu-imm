@@ -8,6 +8,7 @@ pub enum Pipeline {
     ColorLit,
     UvLit,
     ColorUvLit,
+    Quad2d,
 }
 
 impl Pipeline {
@@ -19,6 +20,7 @@ impl Pipeline {
             Pipeline::ColorLit => "color lit",
             Pipeline::UvLit => "uv lit",
             Pipeline::ColorUvLit => "color uv lit",
+            Pipeline::Quad2d => "quad 2d",
         }
     }
 
@@ -30,13 +32,14 @@ impl Pipeline {
             Pipeline::ColorLit => "vs_color_lit",
             Pipeline::UvLit => "vs_uv_lit",
             Pipeline::ColorUvLit => "vs_color_uv_lit",
+            Pipeline::Quad2d => "vs_quad_2d",
         }
     }
 
     pub fn fragment_shader(&self) -> &'static str {
         match self {
             Pipeline::Color => "fs_color",
-            Pipeline::Uv => "fs_uv",
+            Pipeline::Uv | Pipeline::Quad2d => "fs_uv",
             Pipeline::ColorUv => "fs_color_uv",
             Pipeline::ColorLit => "fs_color_lit",
             Pipeline::UvLit => "fs_uv_lit",
@@ -64,6 +67,7 @@ impl Pipeline {
             Pipeline::ColorLit => vertex::color_lit(),
             Pipeline::UvLit => vertex::uv_lit(),
             Pipeline::ColorUvLit => vertex::color_uv_lit(),
+            Pipeline::Quad2d => vertex::uv(),
         }
     }
 
@@ -75,6 +79,7 @@ impl Pipeline {
             Pipeline::ColorLit => true,
             Pipeline::UvLit => false,
             Pipeline::ColorUvLit => true,
+            Pipeline::Quad2d => true,
         }
     }
 
@@ -86,6 +91,7 @@ impl Pipeline {
             Pipeline::ColorLit => false,
             Pipeline::UvLit => true,
             Pipeline::ColorUvLit => true,
+            Pipeline::Quad2d => true,
         }
     }
 
@@ -97,6 +103,7 @@ impl Pipeline {
             Pipeline::ColorLit => true,
             Pipeline::UvLit => true,
             Pipeline::ColorUvLit => true,
+            Pipeline::Quad2d => false,
         }
     }
 
@@ -108,6 +115,7 @@ impl Pipeline {
             Pipeline::ColorLit => Pipeline::ColorLit,
             Pipeline::UvLit => Pipeline::UvLit,
             Pipeline::ColorUvLit => Pipeline::ColorUvLit,
+            Pipeline::Quad2d => panic!("Quad2d can't be lit"),
         }
     }
 
@@ -119,6 +127,7 @@ impl Pipeline {
             Pipeline::ColorLit => 3,
             Pipeline::UvLit => 4,
             Pipeline::ColorUvLit => 5,
+            Pipeline::Quad2d => 6,
         }
     }
 
@@ -126,7 +135,7 @@ impl Pipeline {
         3 + match self {
             Pipeline::Color => 3,
             Pipeline::Uv => 2,
-            Pipeline::ColorUv => 5,
+            Pipeline::ColorUv | Pipeline::Quad2d => 5,
             Pipeline::ColorLit => 9,
             Pipeline::UvLit => 8,
             Pipeline::ColorUvLit => 11,

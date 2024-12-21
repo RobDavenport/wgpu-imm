@@ -16,6 +16,7 @@ pub struct Game {
     cube_static_indexed: usize,
     fox_static_raw: usize,
     test_sphere: usize,
+    tex_grid: usize,
 }
 
 impl Game {
@@ -32,11 +33,13 @@ impl Game {
             cube_static_indexed: 0,
             fox_static_raw: 0,
             test_sphere: 0,
+            tex_grid: 0,
         }
     }
 
     pub fn init(&mut self, state: &mut State) {
         self.tex_index = state.load_texture("assets/Fox.png");
+        self.tex_grid = state.load_texture("assets/color grid 128x128.png");
         // let (vertices, indices) =
         //     importer::import_gltf("assets/BoxVertexColors.glb").import_indexed();
 
@@ -63,9 +66,10 @@ impl Game {
 
         // state.draw_tri_list(&self.immediate_cube, Pipeline::ColorLit);
 
-        state.set_texture(self.tex_index);
-        state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
-        state.draw_tri_list(&self.immediate_fox, Pipeline::Uv);
+        state.push_matrix(Mat4::from_scale(Vec3::splat(128.0)));
+        state.draw_sprite(self.tex_grid);
+        // state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
+        // state.draw_tri_list(&self.immediate_fox, Pipeline::Uv);
 
         // let cube_transform =
         //     Mat4::from_translation(Vec3::new(-3.0, 0.0, 0.0)) * Mat4::from_rotation_y(self.t);

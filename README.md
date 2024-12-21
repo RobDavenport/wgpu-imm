@@ -2,6 +2,9 @@
 
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
+DOING:
+- Add 2d quad rendering
+
 TODO:
 - Improve Lighting
   - Add Attenuation/Range Falloff
@@ -14,7 +17,7 @@ TODO:
 - Move stuff from app State over to VirtualGpu
   - Add size/memory limits
 - Make Camera / View Matrix setup stuff available from Game
-- Add 2d quad rendering
+
 
 - Consider how to handle dynamic or procedural textures
 - Support multiple viewports

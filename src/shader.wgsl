@@ -11,6 +11,7 @@ var<uniform> camera: Camera;
 struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
+    ortho: mat4x4<f32>,
 }
 
 // Texture Bindings
@@ -446,4 +447,23 @@ fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>,
     }
 
     return output_color;
+}
+
+@vertex
+fn vs_quad_2d(
+    model: VertexUvIn,
+    instance: InstanceInput,
+) -> VertexUvOut {
+    var out: VertexUvOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    out.uvs = model.uvs;
+    out.clip_position = camera.ortho * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+
+    return out;
 }

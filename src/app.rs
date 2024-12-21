@@ -144,7 +144,7 @@ pub struct State {
     size: PhysicalSize<u32>,
     window: Arc<Window>,
 
-    render_pipelines: [RenderPipeline; 6],
+    render_pipelines: [RenderPipeline; 7],
     vertex_buffer: wgpu::Buffer,
     depth_texture: DepthTexture,
 
@@ -158,7 +158,7 @@ pub struct State {
 
     camera: Camera,
     camera_buffer: wgpu::Buffer,
-    model_matrix_buffer: wgpu::Buffer,
+    instance_buffer_3d: wgpu::Buffer,
     camera_bind_group: BindGroup,
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
@@ -167,6 +167,9 @@ pub struct State {
     light_bind_group: wgpu::BindGroup,
 
     virtual_render_pass: VirtualRenderPass,
+
+    quad_vertex_buffer: wgpu::Buffer,
+    quad_index_buffer: wgpu::Buffer,
 }
 
 impl State {
@@ -215,7 +218,6 @@ impl State {
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
-                    // View/Proj
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
@@ -231,7 +233,6 @@ impl State {
         let light_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
-                    // View/Proj
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
@@ -306,6 +307,15 @@ impl State {
             Some("Vertex Buffer"),
         ));
 
+        let quad_vertex_buffer = device.create_buffer(&mesh::quad_vertex_buffer_descriptor());
+        queue.write_buffer(&quad_vertex_buffer, 0, cast_slice(mesh::quad_vertices()));
+
+        let quad_index_buffer = device.create_buffer(&mesh::index_buffer_descriptor(
+            size_of::<[u16; 6]>() as u64,
+            Some("Quad Index Buffer"),
+        ));
+        queue.write_buffer(&quad_index_buffer, 0, cast_slice(mesh::quad_indices()));
+
         let camera = Camera::new(&config);
 
         let mut out = Self {
@@ -332,11 +342,14 @@ impl State {
             texture_bind_group_layout,
 
             virtual_render_pass: VirtualRenderPass::default(),
-            model_matrix_buffer,
+            instance_buffer_3d: model_matrix_buffer,
             depth_texture,
 
             light_buffer,
             light_bind_group,
+
+            quad_vertex_buffer,
+            quad_index_buffer,
         };
 
         out.load_texture("assets/default texture.png");
@@ -398,14 +411,15 @@ impl State {
         shader: &ShaderModule,
         layout: &PipelineLayout,
         format: TextureFormat,
-    ) -> [RenderPipeline; 6] {
-        const PIPELINES: [Pipeline; 6] = [
+    ) -> [RenderPipeline; 7] {
+        const PIPELINES: [Pipeline; 7] = [
             Pipeline::Color,
             Pipeline::Uv,
             Pipeline::ColorUv,
             Pipeline::ColorLit,
             Pipeline::UvLit,
             Pipeline::ColorUvLit,
+            Pipeline::Quad2d,
         ];
 
         std::array::from_fn(|i| {
@@ -453,8 +467,8 @@ impl State {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: texture::DepthTexture::DEPTH_FORMAT,
                 depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Greater, // 1.
-                stencil: wgpu::StencilState::default(),        // 2.
+                depth_compare: wgpu::CompareFunction::Greater,
+                stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
@@ -543,7 +557,7 @@ impl State {
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.light_bind_group, &[]);
             render_pass.set_vertex_buffer(
                 MODEL_MATRIX_VERTEX_BUFFER_INDEX,
-                self.model_matrix_buffer.slice(..),
+                self.instance_buffer_3d.slice(..),
             );
             let mut current_byte_index = 0;
             let mut current_vertex_size = 0;
@@ -604,6 +618,29 @@ impl State {
                             current_model_matrix - 1..current_model_matrix,
                         );
                     }
+                    Command::DrawSprite(sprite_index) => {
+                        let texture = &self.textures[*sprite_index];
+                        render_pass
+                            .set_pipeline(&self.render_pipelines[Pipeline::Quad2d.get_shader()]);
+                        render_pass.set_bind_group(
+                            TEXTURE_BIND_GROUP_INDEX,
+                            &texture.bind_group,
+                            &[],
+                        );
+                        render_pass.set_index_buffer(
+                            self.quad_index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint16,
+                        );
+                        render_pass.set_vertex_buffer(
+                            VERTEX_BUFFER_INDEX,
+                            self.quad_vertex_buffer.slice(..),
+                        );
+                        render_pass.draw_indexed(
+                            0..6,
+                            0,
+                            current_model_matrix - 1..current_model_matrix,
+                        )
+                    }
                 }
             }
         }
@@ -660,16 +697,16 @@ impl State {
     }
 
     pub fn push_matrix(&mut self, matrix: Mat4) {
-        let offset = self.virtual_render_pass.matrix_count * size_of::<Mat4>() as u64;
+        let offset = self.virtual_render_pass.matrix_count_3d * size_of::<Mat4>() as u64;
         self.queue.write_buffer(
-            &self.model_matrix_buffer,
+            &self.instance_buffer_3d,
             offset,
             bytemuck::bytes_of(&matrix),
         );
         self.virtual_render_pass
             .commands
             .push(Command::SetModelMatrix);
-        self.virtual_render_pass.matrix_count += 1;
+        self.virtual_render_pass.matrix_count_3d += 1;
     }
 
     pub fn draw_static_mesh(&mut self, index: usize) {
@@ -682,6 +719,12 @@ impl State {
         self.virtual_render_pass
             .commands
             .push(Command::DrawStaticMeshIndexed(index))
+    }
+
+    pub fn draw_sprite(&mut self, index: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::DrawSprite(index));
     }
 
     pub fn set_texture(&mut self, tex_id: usize) {

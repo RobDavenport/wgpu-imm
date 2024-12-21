@@ -4,7 +4,7 @@ use crate::pipeline::Pipeline;
 pub struct VirtualRenderPass {
     pub commands: Vec<Command>,
     pub last_byte_index: u64,
-    pub matrix_count: u64,
+    pub matrix_count_3d: u64,
     pub light_count: u64,
 }
 
@@ -15,13 +15,15 @@ pub enum Command {
     SetModelMatrix,
     DrawStaticMesh(usize),        // Static Mesh ID
     DrawStaticMeshIndexed(usize), // Static Mesh Indexed Id
+
+    DrawSprite(usize),
 }
 
 impl VirtualRenderPass {
     pub fn reset(&mut self) {
         self.commands.clear();
         self.last_byte_index = 0;
-        self.matrix_count = 0;
+        self.matrix_count_3d = 0;
         self.light_count = 0;
     }
 }

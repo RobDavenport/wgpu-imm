@@ -1,3 +1,4 @@
+use glam::Mat4;
 use wgpu::{Buffer, Device};
 
 use crate::{
@@ -15,18 +16,21 @@ pub struct VirtualGpu {
     render_pass: VirtualRenderPass,
     // immediate_vertex_buffer: Buffer,
     // device: Device,
+    width: usize,
+    height: usize,
 }
 
 impl VirtualGpu {
-    pub fn new() -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
             textures: Vec::new(),
             meshes: Vec::new(),
             indexed_meshes: Vec::new(),
             bytes_in_use: 0,
             render_pass: VirtualRenderPass::default(),
-            // device,
-            // immediate_vertex_buffer,
+            width,
+            height, // device,
+                    // immediate_vertex_buffer,
         }
     }
 }
