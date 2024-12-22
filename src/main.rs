@@ -4,6 +4,7 @@ use winit::event_loop::EventLoop;
 mod app;
 mod camera;
 mod game;
+mod immediate_renderer;
 mod importer;
 mod lights;
 mod mesh;

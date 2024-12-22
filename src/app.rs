@@ -17,10 +17,11 @@ use winit::window::{Window, WindowId};
 
 use crate::camera::Camera;
 use crate::game::Game;
+use crate::immediate_renderer::ImmediateRenderer;
 use crate::lights::{Light, Lights};
 use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
-use crate::quad_renderer::{self, QuadRenderer};
+use crate::quad_renderer::QuadRenderer;
 use crate::textures::{self, DepthTexture, Texture};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
@@ -127,9 +128,7 @@ pub struct State {
     window: Arc<Window>,
 
     render_pipelines: [RenderPipeline; 7],
-    vertex_buffer: wgpu::Buffer,
     depth_texture: DepthTexture,
-
     texture_bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
     meshes: Vec<Mesh>,
@@ -145,6 +144,7 @@ pub struct State {
     virtual_render_pass: VirtualRenderPass,
 
     quad_renderer: QuadRenderer,
+    immediate_renderer: ImmediateRenderer,
 }
 
 impl State {
@@ -162,6 +162,7 @@ impl State {
         let camera = Camera::new(&device, &config);
         let lights = Lights::new(&device);
         let quad_renderer = QuadRenderer::new(&device, &queue);
+        let immediate_renderer = ImmediateRenderer::new(&device);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
@@ -219,11 +220,6 @@ impl State {
             config.format,
         );
 
-        let vertex_buffer = device.create_buffer(&mesh::vertex_buffer_descriptor(
-            1024 * 1024 * 8,
-            Some("Vertex Buffer"),
-        ));
-
         let mut out = Self {
             surface,
             device,
@@ -232,7 +228,6 @@ impl State {
             size,
             window: window_arc,
             render_pipelines,
-            vertex_buffer,
             camera,
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
@@ -249,6 +244,7 @@ impl State {
 
             lights,
             quad_renderer,
+            immediate_renderer,
         };
 
         out.load_texture("assets/default texture.png");
@@ -469,7 +465,7 @@ impl State {
                     Command::Draw(vertex_count) => {
                         render_pass.set_vertex_buffer(
                             VERTEX_BUFFER_INDEX,
-                            self.vertex_buffer.slice(current_byte_index..),
+                            self.immediate_renderer.buffer.slice(current_byte_index..),
                         );
                         render_pass.draw(
                             0..*vertex_count,
@@ -561,7 +557,7 @@ impl State {
         }
 
         self.queue.write_buffer(
-            &self.vertex_buffer,
+            &self.immediate_renderer.buffer,
             self.virtual_render_pass.last_byte_index,
             bytemuck::cast_slice(data),
         );
