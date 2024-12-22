@@ -9,7 +9,6 @@ mod light;
 mod mesh;
 mod pipeline;
 mod spec_tex;
-mod sprite;
 mod texture;
 mod vertex;
 mod virtual_gpu;

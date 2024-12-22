@@ -79,25 +79,6 @@ impl ApplicationHandler for StateApplication {
                     self.game.draw(self.state.as_mut().unwrap());
                     self.state.as_mut().unwrap().render().unwrap();
                 }
-                WindowEvent::CursorMoved { position, .. } => {
-                    let state = self.state.as_mut().unwrap();
-                    state.mx = (position.x as f32) / state.size.width as f32;
-                    state.my = 1.0 - ((position.y as f32) / state.size.height as f32);
-                }
-                WindowEvent::MouseInput { .. } => {
-                    // if button == MouseButton::Left && state.is_pressed() {
-                    //     let state = self.state.as_mut().unwrap();
-
-                    //     let vertex = Vertex {
-                    //         position: [(state.mx * 2.0) - 1.0, (state.my * 2.0) - 1.0, 1.0],
-                    //         color: [fastrand::f32(), fastrand::f32(), fastrand::f32()],
-                    //     };
-
-                    //     println!("Pushed: {vertex:?}");
-
-                    //     state.vertices.push(vertex);
-                    // }
-                }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let state = &mut self.state.as_mut().unwrap();
                     // Check the key event state and handle accordingly
@@ -147,9 +128,6 @@ pub struct State {
     render_pipelines: [RenderPipeline; 7],
     vertex_buffer: wgpu::Buffer,
     depth_texture: DepthTexture,
-
-    mx: f32,
-    my: f32,
 
     texture_bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
@@ -327,8 +305,6 @@ impl State {
             window: window_arc,
             render_pipelines,
             vertex_buffer,
-            mx: 0.0,
-            my: 0.0,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -812,14 +788,7 @@ impl State {
             size,
         );
 
-        // self.queue.submit([]);
-
-        let texture = Texture {
-            texture,
-            view,
-            sampler,
-            bind_group,
-        };
+        let texture = Texture { bind_group };
 
         self.textures.push(texture);
         self.textures.len() - 1

@@ -1,4 +1,4 @@
-use crate::{light, vertex};
+use crate::vertex;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Pipeline {

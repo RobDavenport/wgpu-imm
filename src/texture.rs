@@ -1,7 +1,4 @@
 pub struct Texture {
-    pub texture: wgpu::Texture,
-    pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
     pub bind_group: wgpu::BindGroup,
 }
 
@@ -18,9 +15,7 @@ pub fn sampler_descriptor() -> wgpu::SamplerDescriptor<'static> {
 }
 
 pub struct DepthTexture {
-    pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
 }
 
 impl DepthTexture {
@@ -49,7 +44,7 @@ impl DepthTexture {
         let texture = device.create_texture(&desc);
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        let _sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -63,10 +58,6 @@ impl DepthTexture {
             ..Default::default()
         });
 
-        Self {
-            texture,
-            view,
-            sampler,
-        }
+        Self { view }
     }
 }

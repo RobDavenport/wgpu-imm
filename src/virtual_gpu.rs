@@ -1,4 +1,3 @@
-use glam::Mat4;
 use wgpu::{Buffer, Device};
 
 use crate::{

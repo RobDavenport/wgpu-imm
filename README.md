@@ -3,7 +3,7 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-
+- Move stuff from app State over to VirtualGpu
 
 TODO:
 - Improve Lighting
@@ -14,8 +14,7 @@ TODO:
   - Adjust lighting to include a light mask
     - Could be tied to instance data
     - Prevents weird async issue of setting lights and drawing meshes out of order
-- Move stuff from app State over to VirtualGpu
-  - Add size/memory limits
+- Add size/memory limits for VirtualGPU
 - Make Camera / View Matrix setup stuff available from Game
 - Consider how to handle dynamic or procedural textures
 - Support multiple viewports
