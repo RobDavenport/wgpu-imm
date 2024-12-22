@@ -5,7 +5,7 @@ use glam::{Mat4, Vec3A, Vec4Swizzles};
 use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, BindGroup, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout,
+    Adapter, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout,
     PresentMode, Queue, RenderPipeline, ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
 };
 use winit::application::ApplicationHandler;
@@ -15,7 +15,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use crate::camera::{Camera, CameraUniformType};
+use crate::camera::{Camera};
 use crate::game::Game;
 use crate::light::{self, Light};
 use crate::mesh::{self, IndexedMesh, Mesh};
@@ -135,9 +135,7 @@ pub struct State {
     indexed_meshes: Vec<IndexedMesh>,
 
     camera: Camera,
-    camera_buffer: wgpu::Buffer,
     instance_buffer_3d: wgpu::Buffer,
-    camera_bind_group: BindGroup,
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
@@ -161,6 +159,8 @@ impl State {
         let surface_caps = surface.get_capabilities(&adapter);
         let config = Self::create_surface_config(size, surface_caps);
         surface.configure(&device, &config);
+
+        let camera = Camera::new(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
@@ -193,21 +193,6 @@ impl State {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-
         let light_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
@@ -230,27 +215,11 @@ impl State {
             mapped_at_creation: false,
         });
 
-        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Camera Buffer"),
-            size: size_of::<CameraUniformType>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         let light_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("LightBuffer"),
             size: size_of::<Light>() as u64 * light::MAX_LIGHTS,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
         });
 
         let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -266,7 +235,7 @@ impl State {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
-                    &camera_bind_group_layout,
+                    &camera.bind_group_layout,
                     &texture_bind_group_layout,
                     &light_bind_group_layout,
                 ],
@@ -294,8 +263,6 @@ impl State {
         ));
         queue.write_buffer(&quad_index_buffer, 0, cast_slice(mesh::quad_indices()));
 
-        let camera = Camera::new(&config);
-
         let mut out = Self {
             surface,
             device,
@@ -306,8 +273,6 @@ impl State {
             render_pipelines,
             vertex_buffer,
             camera,
-            camera_buffer,
-            camera_bind_group,
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
@@ -494,7 +459,7 @@ impl State {
             });
 
         self.queue.write_buffer(
-            &self.camera_buffer,
+            &self.camera.buffer,
             0,
             bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
         );
@@ -529,7 +494,7 @@ impl State {
                 timestamp_writes: None,
             });
 
-            render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.light_bind_group, &[]);
             render_pass.set_vertex_buffer(
                 MODEL_MATRIX_VERTEX_BUFFER_INDEX,

@@ -12,10 +12,45 @@ pub struct Camera {
     z_near: f32,
     width: u32,
     height: u32,
+
+    // Wgpu Stuff:
+    pub buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+    pub bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl Camera {
-    pub fn new(config: &SurfaceConfiguration) -> Self {
+    pub fn new(device: &wgpu::Device, config: &SurfaceConfiguration) -> Self {
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("camera_bind_group_layout"),
+        });
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Buffer"),
+            size: size_of::<CameraUniformType>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
         Self {
             eye: Vec3A::new(0.0, 1.0, 5.0),
             yaw: 0.0,
@@ -25,6 +60,9 @@ impl Camera {
             z_near: 0.1,
             width: config.width,
             height: config.height,
+            buffer,
+            bind_group,
+            bind_group_layout,
         }
     }
 
