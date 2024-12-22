@@ -1,7 +1,11 @@
-use crate::{immediate_renderer::ImmediateRenderer, lights::Lights, pipeline::Pipeline};
+use crate::{
+    camera::Camera, immediate_renderer::ImmediateRenderer, lights::Lights, pipeline::Pipeline,
+};
 
 pub struct VirtualRenderPass {
     pub commands: Vec<Command>,
+
+    pub camera: Camera,
 
     pub instance_buffer: wgpu::Buffer,
     pub inistance_count: u64,
@@ -23,7 +27,7 @@ pub enum Command {
 }
 
 impl VirtualRenderPass {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: 8 * 1024 * 1024, // 8mb
@@ -33,6 +37,7 @@ impl VirtualRenderPass {
 
         Self {
             commands: Vec::new(),
+            camera: Camera::new(device, config),
             instance_buffer,
             inistance_count: 0,
             light_count: 0,

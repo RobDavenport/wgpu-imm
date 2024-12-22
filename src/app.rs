@@ -127,7 +127,6 @@ pub struct State {
 
     render_pipelines: [RenderPipeline; 7],
 
-    camera: Camera,
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
@@ -154,7 +153,7 @@ impl State {
         let quad_renderer = QuadRenderer::new(&device, &queue);
         let preloaded_renderer = PreloadedRenderer::new();
         let textures = Textures::new(&device, &config);
-        let virtual_render_pass = VirtualRenderPass::new(&device);
+        let virtual_render_pass = VirtualRenderPass::new(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
@@ -187,7 +186,6 @@ impl State {
             size,
             window: window_arc,
             render_pipelines,
-            camera,
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
@@ -363,9 +361,9 @@ impl State {
             });
 
         self.queue.write_buffer(
-            &self.camera.buffer,
+            &self.virtual_render_pass.camera.buffer,
             0,
-            bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
+            bytemuck::cast_slice(&self.virtual_render_pass.camera.get_camera_uniforms()),
         );
 
         {
@@ -396,7 +394,11 @@ impl State {
                 timestamp_writes: None,
             });
 
-            render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
+            render_pass.set_bind_group(
+                CAMERA_BIND_GROUP_INDEX,
+                &self.virtual_render_pass.camera.bind_group,
+                &[],
+            );
             render_pass.set_bind_group(
                 LIGHT_BIND_GROUP_INDEX,
                 &self.virtual_render_pass.lights.bind_group,
@@ -531,8 +533,10 @@ impl State {
     pub fn push_light(&mut self, light: &Light) {
         let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
         let mut light = *light;
-        let view_position = self.camera.get_view() * light.position_range.xyz().extend(1.0);
-        let view_direction = self.camera.get_view() * light.direction_angle.xyz().extend(0.0);
+        let view_position =
+            self.virtual_render_pass.camera.get_view() * light.position_range.xyz().extend(1.0);
+        let view_direction =
+            self.virtual_render_pass.camera.get_view() * light.direction_angle.xyz().extend(0.0);
 
         light.position_range = view_position.xyz().extend(light.position_range.w);
         light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
@@ -592,13 +596,13 @@ impl State {
         const CAMERA_SPEED: f32 = 2.5;
         const CAMERA_ROT_SPEED: f32 = 0.75;
 
-        let forward = self.camera.get_forward();
+        let forward = self.virtual_render_pass.camera.get_forward();
         let right = forward.cross(Vec3A::Y);
 
-        self.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
-        self.camera.eye -= right * self.camera_delta.x * DT * CAMERA_SPEED;
+        self.virtual_render_pass.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
+        self.virtual_render_pass.camera.eye -= right * self.camera_delta.x * DT * CAMERA_SPEED;
 
-        self.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
+        self.virtual_render_pass.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
 
         self.push_matrix(Mat4::IDENTITY);
         self.set_texture(0);
