@@ -5,7 +5,7 @@ mod app;
 mod camera;
 mod game;
 mod importer;
-mod light;
+mod lights;
 mod mesh;
 mod pipeline;
 mod spec_tex;

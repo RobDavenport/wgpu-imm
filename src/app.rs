@@ -5,8 +5,8 @@ use glam::{Mat4, Vec3A, Vec4Swizzles};
 use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout,
-    PresentMode, Queue, RenderPipeline, ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
+    Adapter, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout, PresentMode, Queue,
+    RenderPipeline, ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -15,9 +15,9 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use crate::camera::{Camera};
+use crate::camera::Camera;
 use crate::game::Game;
-use crate::light::{self, Light};
+use crate::lights::{self, Light, Lights};
 use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
 use crate::texture::{self, DepthTexture, Texture};
@@ -135,12 +135,11 @@ pub struct State {
     indexed_meshes: Vec<IndexedMesh>,
 
     camera: Camera,
-    instance_buffer_3d: wgpu::Buffer,
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
-    light_buffer: wgpu::Buffer,
-    light_bind_group: wgpu::BindGroup,
+    lights: Lights,
+    instance_buffer_3d: wgpu::Buffer,
 
     virtual_render_pass: VirtualRenderPass,
 
@@ -161,6 +160,7 @@ impl State {
         surface.configure(&device, &config);
 
         let camera = Camera::new(&device, &config);
+        let lights = Lights::new(&device);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
@@ -193,42 +193,11 @@ impl State {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("light_bind_group_layout"),
-            });
-
         let model_matrix_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Model Matrix Buffer"),
             size: 8 * 1024 * 1024, // 8mb
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        });
-
-        let light_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("LightBuffer"),
-            size: size_of::<Light>() as u64 * light::MAX_LIGHTS,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &light_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: light_buffer.as_entire_binding(),
-            }],
-            label: Some("light_bind_group"),
         });
 
         let render_pipeline_layout =
@@ -237,7 +206,7 @@ impl State {
                 bind_group_layouts: &[
                     &camera.bind_group_layout,
                     &texture_bind_group_layout,
-                    &light_bind_group_layout,
+                    &lights.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -286,8 +255,7 @@ impl State {
             instance_buffer_3d: model_matrix_buffer,
             depth_texture,
 
-            light_buffer,
-            light_bind_group,
+            lights,
 
             quad_vertex_buffer,
             quad_index_buffer,
@@ -495,7 +463,7 @@ impl State {
             });
 
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
-            render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.light_bind_group, &[]);
+            render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
             render_pass.set_vertex_buffer(
                 MODEL_MATRIX_VERTEX_BUFFER_INDEX,
                 self.instance_buffer_3d.slice(..),
@@ -629,7 +597,7 @@ impl State {
         light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
 
         self.queue.write_buffer(
-            &self.light_buffer,
+            &self.lights.buffer,
             offset,
             cast_slice(&light.get_light_uniforms()),
         );

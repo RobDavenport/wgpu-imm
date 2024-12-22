@@ -1,7 +1,7 @@
 use crate::{
     app::State,
     importer::{self},
-    light::Light,
+    lights::Light,
     pipeline::Pipeline,
 };
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
