@@ -2,7 +2,7 @@ use wgpu::{Buffer, Device};
 
 use crate::{
     mesh::{IndexedMesh, Mesh},
-    texture::Texture,
+    textures::Texture,
     virtual_render_pass::VirtualRenderPass,
 };
 

@@ -17,10 +17,11 @@ use winit::window::{Window, WindowId};
 
 use crate::camera::Camera;
 use crate::game::Game;
-use crate::lights::{self, Light, Lights};
+use crate::lights::{Light, Lights};
 use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
-use crate::texture::{self, DepthTexture, Texture};
+use crate::quad_renderer::{self, QuadRenderer};
+use crate::textures::{self, DepthTexture, Texture};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
 pub struct StateApplication {
@@ -143,8 +144,7 @@ pub struct State {
 
     virtual_render_pass: VirtualRenderPass,
 
-    quad_vertex_buffer: wgpu::Buffer,
-    quad_index_buffer: wgpu::Buffer,
+    quad_renderer: QuadRenderer,
 }
 
 impl State {
@@ -161,6 +161,7 @@ impl State {
 
         let camera = Camera::new(&device, &config);
         let lights = Lights::new(&device);
+        let quad_renderer = QuadRenderer::new(&device, &queue);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
@@ -168,7 +169,7 @@ impl State {
         });
 
         let depth_texture =
-            texture::DepthTexture::create_depth_texture(&device, &config, "depth_texture");
+            textures::DepthTexture::create_depth_texture(&device, &config, "depth_texture");
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -223,15 +224,6 @@ impl State {
             Some("Vertex Buffer"),
         ));
 
-        let quad_vertex_buffer = device.create_buffer(&mesh::quad_vertex_buffer_descriptor());
-        queue.write_buffer(&quad_vertex_buffer, 0, cast_slice(mesh::quad_vertices()));
-
-        let quad_index_buffer = device.create_buffer(&mesh::index_buffer_descriptor(
-            size_of::<[u16; 6]>() as u64,
-            Some("Quad Index Buffer"),
-        ));
-        queue.write_buffer(&quad_index_buffer, 0, cast_slice(mesh::quad_indices()));
-
         let mut out = Self {
             surface,
             device,
@@ -256,9 +248,7 @@ impl State {
             depth_texture,
 
             lights,
-
-            quad_vertex_buffer,
-            quad_index_buffer,
+            quad_renderer,
         };
 
         out.load_texture("assets/default texture.png");
@@ -374,7 +364,7 @@ impl State {
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: texture::DepthTexture::DEPTH_FORMAT,
+                format: textures::DepthTexture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::GreaterEqual,
                 stencil: wgpu::StencilState::default(),
@@ -405,7 +395,7 @@ impl State {
 
         self.surface.configure(&self.device, &self.config);
 
-        self.depth_texture = texture::DepthTexture::create_depth_texture(
+        self.depth_texture = textures::DepthTexture::create_depth_texture(
             &self.device,
             &self.config,
             "depth_texture",
@@ -431,8 +421,6 @@ impl State {
             0,
             bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
         );
-
-        // self.queue.submit([]);
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -537,12 +525,12 @@ impl State {
                             &[],
                         );
                         render_pass.set_index_buffer(
-                            self.quad_index_buffer.slice(..),
+                            self.quad_renderer.quad_index_buffer.slice(..),
                             wgpu::IndexFormat::Uint16,
                         );
                         render_pass.set_vertex_buffer(
                             VERTEX_BUFFER_INDEX,
-                            self.quad_vertex_buffer.slice(..),
+                            self.quad_renderer.quad_vertex_buffer.slice(..),
                         );
                         render_pass.draw_indexed(
                             0..6,
@@ -684,7 +672,7 @@ impl State {
             view_formats: &[],
         });
 
-        let sampler = self.device.create_sampler(&texture::sampler_descriptor());
+        let sampler = self.device.create_sampler(&textures::sampler_descriptor());
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
