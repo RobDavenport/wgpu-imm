@@ -16,7 +16,6 @@ use winit::window::{Window, WindowId};
 
 use crate::camera::Camera;
 use crate::game::Game;
-use crate::immediate_renderer::ImmediateRenderer;
 use crate::lights::{Light, Lights};
 use crate::pipeline::Pipeline;
 use crate::preloaded_renderer::PreloadedRenderer;
@@ -34,7 +33,7 @@ const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
 const LIGHT_BIND_GROUP_INDEX: u32 = 2;
 
 const VERTEX_BUFFER_INDEX: u32 = 0;
-const MODEL_MATRIX_VERTEX_BUFFER_INDEX: u32 = 1;
+const INSTANCE_BUFFER_INDEX: u32 = 1;
 
 impl StateApplication {
     pub fn new() -> Self {
@@ -132,14 +131,9 @@ pub struct State {
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
-    lights: Lights,
-    instance_buffer: wgpu::Buffer,
-
     virtual_render_pass: VirtualRenderPass,
-
     quad_renderer: QuadRenderer,
     preloaded_renderer: PreloadedRenderer,
-    immediate_renderer: ImmediateRenderer,
     textures: Textures,
 }
 
@@ -158,21 +152,13 @@ impl State {
         let camera = Camera::new(&device, &config);
         let lights = Lights::new(&device);
         let quad_renderer = QuadRenderer::new(&device, &queue);
-        let immediate_renderer = ImmediateRenderer::new(&device);
         let preloaded_renderer = PreloadedRenderer::new();
         let textures = Textures::new(&device, &config);
-        let virtual_render_pass = VirtualRenderPass::new();
+        let virtual_render_pass = VirtualRenderPass::new(&device);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
-            size: 8 * 1024 * 1024, // 8mb
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
         });
 
         let render_pipeline_layout =
@@ -206,13 +192,9 @@ impl State {
             camera_yaw_delta: 0.0,
 
             virtual_render_pass,
-            instance_buffer,
-
-            lights,
             textures,
             quad_renderer,
             preloaded_renderer,
-            immediate_renderer,
         };
 
         out.load_texture("assets/default texture.png");
@@ -415,10 +397,14 @@ impl State {
             });
 
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
-            render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
+            render_pass.set_bind_group(
+                LIGHT_BIND_GROUP_INDEX,
+                &self.virtual_render_pass.lights.bind_group,
+                &[],
+            );
             render_pass.set_vertex_buffer(
-                MODEL_MATRIX_VERTEX_BUFFER_INDEX,
-                self.instance_buffer.slice(..),
+                INSTANCE_BUFFER_INDEX,
+                self.virtual_render_pass.instance_buffer.slice(..),
             );
             let mut current_byte_index = 0;
             let mut current_vertex_size = 0;
@@ -433,7 +419,10 @@ impl State {
                     Command::Draw(vertex_count) => {
                         render_pass.set_vertex_buffer(
                             VERTEX_BUFFER_INDEX,
-                            self.immediate_renderer.buffer.slice(current_byte_index..),
+                            self.virtual_render_pass
+                                .immediate_renderer
+                                .buffer
+                                .slice(current_byte_index..),
                         );
                         render_pass.draw(
                             0..*vertex_count,
@@ -525,8 +514,8 @@ impl State {
         }
 
         self.queue.write_buffer(
-            &self.immediate_renderer.buffer,
-            self.virtual_render_pass.last_byte_index,
+            &self.virtual_render_pass.immediate_renderer.buffer,
+            self.virtual_render_pass.immediate_renderer.last_byte_index,
             bytemuck::cast_slice(data),
         );
 
@@ -536,7 +525,7 @@ impl State {
         self.virtual_render_pass
             .commands
             .push(Command::Draw(vertex_count as u32));
-        self.virtual_render_pass.last_byte_index += total_attributes as u64 * 4;
+        self.virtual_render_pass.immediate_renderer.last_byte_index += total_attributes as u64 * 4;
     }
 
     pub fn push_light(&mut self, light: &Light) {
@@ -549,7 +538,7 @@ impl State {
         light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
 
         self.queue.write_buffer(
-            &self.lights.buffer,
+            &self.virtual_render_pass.lights.buffer,
             offset,
             cast_slice(&light.get_light_uniforms()),
         );
@@ -558,13 +547,16 @@ impl State {
     }
 
     pub fn push_matrix(&mut self, matrix: Mat4) {
-        let offset = self.virtual_render_pass.matrix_count_3d * size_of::<Mat4>() as u64;
-        self.queue
-            .write_buffer(&self.instance_buffer, offset, bytemuck::bytes_of(&matrix));
+        let offset = self.virtual_render_pass.inistance_count * size_of::<Mat4>() as u64;
+        self.queue.write_buffer(
+            &self.virtual_render_pass.instance_buffer,
+            offset,
+            bytemuck::bytes_of(&matrix),
+        );
         self.virtual_render_pass
             .commands
             .push(Command::SetModelMatrix);
-        self.virtual_render_pass.matrix_count_3d += 1;
+        self.virtual_render_pass.inistance_count += 1;
     }
 
     pub fn draw_static_mesh(&mut self, index: usize) {

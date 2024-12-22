@@ -4,6 +4,7 @@ use crate::mesh;
 
 pub struct ImmediateRenderer {
     pub buffer: wgpu::Buffer,
+    pub last_byte_index: u64,
 }
 
 impl ImmediateRenderer {
@@ -13,6 +14,13 @@ impl ImmediateRenderer {
             Some("Immediate Vertex Buffer"),
         ));
 
-        Self { buffer }
+        Self {
+            buffer,
+            last_byte_index: 0,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.last_byte_index = 0;
     }
 }
