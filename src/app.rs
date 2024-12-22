@@ -133,13 +133,13 @@ pub struct State {
     camera_yaw_delta: f32,
 
     lights: Lights,
-    instance_buffer_3d: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
 
     virtual_render_pass: VirtualRenderPass,
 
     quad_renderer: QuadRenderer,
-    immediate_renderer: ImmediateRenderer,
     preloaded_renderer: PreloadedRenderer,
+    immediate_renderer: ImmediateRenderer,
     textures: Textures,
 }
 
@@ -161,37 +161,15 @@ impl State {
         let immediate_renderer = ImmediateRenderer::new(&device);
         let preloaded_renderer = PreloadedRenderer::new();
         let textures = Textures::new(&device, &config);
+        let virtual_render_pass = VirtualRenderPass::new();
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
-                        count: None,
-                    },
-                ],
-                label: Some("texture_bind_group_layout"),
-            });
-
-        let model_matrix_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Model Matrix Buffer"),
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
             size: 8 * 1024 * 1024, // 8mb
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -202,7 +180,7 @@ impl State {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
                     &camera.bind_group_layout,
-                    &texture_bind_group_layout,
+                    &textures.bind_group_layout,
                     &lights.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
@@ -227,14 +205,14 @@ impl State {
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
-            virtual_render_pass: VirtualRenderPass::default(),
-            instance_buffer_3d: model_matrix_buffer,
+            virtual_render_pass,
+            instance_buffer,
 
             lights,
             textures,
             quad_renderer,
-            immediate_renderer,
             preloaded_renderer,
+            immediate_renderer,
         };
 
         out.load_texture("assets/default texture.png");
@@ -440,7 +418,7 @@ impl State {
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
             render_pass.set_vertex_buffer(
                 MODEL_MATRIX_VERTEX_BUFFER_INDEX,
-                self.instance_buffer_3d.slice(..),
+                self.instance_buffer.slice(..),
             );
             let mut current_byte_index = 0;
             let mut current_vertex_size = 0;
@@ -581,11 +559,8 @@ impl State {
 
     pub fn push_matrix(&mut self, matrix: Mat4) {
         let offset = self.virtual_render_pass.matrix_count_3d * size_of::<Mat4>() as u64;
-        self.queue.write_buffer(
-            &self.instance_buffer_3d,
-            offset,
-            bytemuck::bytes_of(&matrix),
-        );
+        self.queue
+            .write_buffer(&self.instance_buffer, offset, bytemuck::bytes_of(&matrix));
         self.virtual_render_pass
             .commands
             .push(Command::SetModelMatrix);

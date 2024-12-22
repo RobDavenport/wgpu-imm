@@ -1,5 +1,7 @@
 use crate::mesh;
 
+// TODO: Could do something for immediate Textures
+
 pub struct ImmediateRenderer {
     pub buffer: wgpu::Buffer,
 }

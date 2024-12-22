@@ -1,5 +1,3 @@
-use wgpu::{Buffer, Device};
-
 use crate::{
     mesh::{IndexedMesh, Mesh},
     textures::Texture,
@@ -12,9 +10,7 @@ pub struct VirtualGpu {
     indexed_meshes: Vec<IndexedMesh>,
 
     bytes_in_use: usize,
-    render_pass: VirtualRenderPass,
-    // immediate_vertex_buffer: Buffer,
-    // device: Device,
+    //virtual_render_pass: VirtualRenderPass,
     width: usize,
     height: usize,
 }
@@ -26,10 +22,9 @@ impl VirtualGpu {
             meshes: Vec::new(),
             indexed_meshes: Vec::new(),
             bytes_in_use: 0,
-            render_pass: VirtualRenderPass::default(),
+            //virtual_render_pass: VirtualRenderPass::default(),
             width,
-            height, // device,
-                    // immediate_vertex_buffer,
+            height,
         }
     }
 }
