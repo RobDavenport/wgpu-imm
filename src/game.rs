@@ -3,6 +3,7 @@ use crate::{
     importer::{self},
     lights::Light,
     pipeline::Pipeline,
+    virtual_gpu::VirtualGpu,
 };
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
 
@@ -37,21 +38,21 @@ impl Game {
         }
     }
 
-    pub fn init(&mut self, state: &mut State) {
-        self.tex_index = state.load_texture("assets/Fox.png");
-        self.tex_grid = state.load_texture("assets/color grid 128x128.png");
+    pub fn init(&mut self, gpu: &mut VirtualGpu) {
+        self.tex_index = gpu.load_texture("assets/Fox.png");
+        self.tex_grid = gpu.load_texture("assets/color grid 128x128.png");
         let (vertices, indices) =
             importer::import_gltf("assets/BoxVertexColors.glb").import_indexed(Pipeline::Color);
 
         self.cube_static_indexed =
-            state.load_static_mesh_indexed(&vertices, &indices, Pipeline::Color);
+            gpu.load_static_mesh_indexed(&vertices, &indices, Pipeline::Color);
 
         let (vertices, indices) = importer::import_gltf("assets/test sphere metallic.glb")
             .import_indexed(Pipeline::ColorLit);
-        self.test_sphere = state.load_static_mesh_indexed(&vertices, &indices, Pipeline::ColorLit);
+        self.test_sphere = gpu.load_static_mesh_indexed(&vertices, &indices, Pipeline::ColorLit);
 
         let data = importer::import_gltf("assets/Fox.glb").import(Pipeline::Uv);
-        self.fox_static_raw = state.load_static_mesh(&data, Pipeline::Uv);
+        self.fox_static_raw = gpu.load_static_mesh(&data, Pipeline::Uv);
     }
 
     pub fn update(&mut self) {

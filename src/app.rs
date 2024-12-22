@@ -4,8 +4,7 @@ use bytemuck::cast_slice;
 use glam::{Mat4, Vec3A, Vec4Swizzles};
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, Device, Instance, MemoryHints, PipelineLayout, PresentMode, Queue, RenderPipeline,
-    ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
+    Adapter, Device, Instance, MemoryHints, PresentMode, Queue, Surface, SurfaceCapabilities,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -14,13 +13,11 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use crate::camera::Camera;
 use crate::game::Game;
-use crate::lights::{Light, Lights};
+use crate::lights::Light;
 use crate::pipeline::Pipeline;
-use crate::preloaded_renderer::PreloadedRenderer;
-use crate::quad_renderer::QuadRenderer;
-use crate::textures::{self, Textures};
+use crate::textures::{self};
+use crate::virtual_gpu::VirtualGpu;
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
 pub struct StateApplication {
@@ -52,7 +49,7 @@ impl ApplicationHandler for StateApplication {
 
         let mut state = State::new(window);
 
-        self.game.init(&mut state);
+        self.game.init(&mut state.virtual_gpu);
 
         self.state = Some(state);
     }
@@ -118,22 +115,16 @@ impl ApplicationHandler for StateApplication {
 
 pub struct State {
     surface: Surface<'static>,
-    device: Device,
-    queue: Queue,
     config: wgpu::SurfaceConfiguration,
 
     size: PhysicalSize<u32>,
     window: Arc<Window>,
 
-    render_pipelines: [RenderPipeline; 7],
-
     camera_delta: Vec3A,
     camera_yaw_delta: f32,
 
     virtual_render_pass: VirtualRenderPass,
-    quad_renderer: QuadRenderer,
-    preloaded_renderer: PreloadedRenderer,
-    textures: Textures,
+    virtual_gpu: VirtualGpu,
 }
 
 impl State {
@@ -148,56 +139,20 @@ impl State {
         let config = Self::create_surface_config(size, surface_caps);
         surface.configure(&device, &config);
 
-        let camera = Camera::new(&device, &config);
-        let lights = Lights::new(&device);
-        let quad_renderer = QuadRenderer::new(&device, &queue);
-        let preloaded_renderer = PreloadedRenderer::new();
-        let textures = Textures::new(&device, &config);
         let virtual_render_pass = VirtualRenderPass::new(&device, &config);
+        let virtual_gpu = VirtualGpu::new(device, queue, &config, &virtual_render_pass);
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Master Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &camera.bind_group_layout,
-                    &textures.bind_group_layout,
-                    &lights.bind_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-        let render_pipelines = Self::generate_render_pipelines(
-            &device,
-            &shader,
-            &render_pipeline_layout,
-            config.format,
-        );
-
-        let mut out = Self {
+        Self {
             surface,
-            device,
-            queue,
             config,
             size,
             window: window_arc,
-            render_pipelines,
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
             virtual_render_pass,
-            textures,
-            quad_renderer,
-            preloaded_renderer,
-        };
-
-        out.load_texture("assets/default texture.png");
-
-        out
+            virtual_gpu,
+        }
     }
 
     fn create_surface_config(
@@ -249,81 +204,6 @@ impl State {
             .unwrap()
     }
 
-    fn generate_render_pipelines(
-        device: &Device,
-        shader: &ShaderModule,
-        layout: &PipelineLayout,
-        format: TextureFormat,
-    ) -> [RenderPipeline; 7] {
-        const PIPELINES: [Pipeline; 7] = [
-            Pipeline::Color,
-            Pipeline::Uv,
-            Pipeline::ColorUv,
-            Pipeline::ColorLit,
-            Pipeline::UvLit,
-            Pipeline::ColorUvLit,
-            Pipeline::Quad2d,
-        ];
-
-        std::array::from_fn(|i| {
-            let pipeline = PIPELINES[i];
-
-            Self::create_render_pipeline(device, shader, layout, format, pipeline)
-        })
-    }
-
-    fn create_render_pipeline(
-        device: &Device,
-        shader: &ShaderModule,
-        layout: &PipelineLayout,
-        format: TextureFormat,
-        pipeline: Pipeline,
-    ) -> RenderPipeline {
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(pipeline.name()),
-            layout: Some(layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some(pipeline.vertex_shader()),
-                buffers: &pipeline.get_pipeline_buffers(),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some(pipeline.fragment_shader()),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: textures::DepthTexture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::GreaterEqual,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        })
-    }
-
     fn create_gpu_instance() -> Instance {
         Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -337,10 +217,11 @@ impl State {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
 
-        self.surface.configure(&self.device, &self.config);
+        self.surface
+            .configure(&self.virtual_gpu.device, &self.config);
 
-        self.textures.depth_texture = textures::DepthTexture::create_depth_texture(
-            &self.device,
+        self.virtual_gpu.textures.depth_texture = textures::DepthTexture::create_depth_texture(
+            &self.virtual_gpu.device,
             &self.config,
             "depth_texture",
         );
@@ -354,13 +235,14 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder =
+            self.virtual_gpu
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
 
-        self.queue.write_buffer(
+        self.virtual_gpu.queue.write_buffer(
             &self.virtual_render_pass.camera.buffer,
             0,
             bytemuck::cast_slice(&self.virtual_render_pass.camera.get_camera_uniforms()),
@@ -383,7 +265,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.textures.depth_texture.view,
+                    view: &self.virtual_gpu.textures.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(f32::NEG_INFINITY),
                         store: wgpu::StoreOp::Store,
@@ -415,7 +297,9 @@ impl State {
             for command in self.virtual_render_pass.commands.iter() {
                 match command {
                     Command::SetPipeline(pipeline) => {
-                        render_pass.set_pipeline(&self.render_pipelines[pipeline.get_shader()]);
+                        render_pass.set_pipeline(
+                            &self.virtual_gpu.render_pipelines[pipeline.get_shader()],
+                        );
                         current_vertex_size = pipeline.get_vertex_size();
                     }
                     Command::Draw(vertex_count) => {
@@ -433,7 +317,7 @@ impl State {
                         current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
                     }
                     Command::SetTexture(tex_index) => {
-                        let texture = &self.textures.textures[*tex_index];
+                        let texture = &self.virtual_gpu.textures.textures[*tex_index];
                         render_pass.set_bind_group(
                             TEXTURE_BIND_GROUP_INDEX,
                             &texture.bind_group,
@@ -444,9 +328,10 @@ impl State {
                         current_model_matrix += 1;
                     }
                     Command::DrawStaticMesh(index) => {
-                        let mesh = &self.preloaded_renderer.meshes[*index];
-                        render_pass
-                            .set_pipeline(&self.render_pipelines[mesh.pipeline.get_shader()]);
+                        let mesh = &self.virtual_gpu.preloaded_renderer.meshes[*index];
+                        render_pass.set_pipeline(
+                            &self.virtual_gpu.render_pipelines[mesh.pipeline.get_shader()],
+                        );
                         render_pass
                             .set_vertex_buffer(VERTEX_BUFFER_INDEX, mesh.vertex_buffer.slice(..));
                         render_pass.draw(
@@ -455,9 +340,10 @@ impl State {
                         );
                     }
                     Command::DrawStaticMeshIndexed(index) => {
-                        let mesh = &self.preloaded_renderer.indexed_meshes[*index];
-                        render_pass
-                            .set_pipeline(&self.render_pipelines[mesh.pipeline.get_shader()]);
+                        let mesh = &self.virtual_gpu.preloaded_renderer.indexed_meshes[*index];
+                        render_pass.set_pipeline(
+                            &self.virtual_gpu.render_pipelines[mesh.pipeline.get_shader()],
+                        );
                         render_pass
                             .set_vertex_buffer(VERTEX_BUFFER_INDEX, mesh.vertex_buffer.slice(..));
                         render_pass.set_index_buffer(
@@ -471,21 +357,22 @@ impl State {
                         );
                     }
                     Command::DrawSprite(sprite_index) => {
-                        let texture = &self.textures.textures[*sprite_index];
-                        render_pass
-                            .set_pipeline(&self.render_pipelines[Pipeline::Quad2d.get_shader()]);
+                        let texture = &self.virtual_gpu.textures.textures[*sprite_index];
+                        render_pass.set_pipeline(
+                            &self.virtual_gpu.render_pipelines[Pipeline::Quad2d.get_shader()],
+                        );
                         render_pass.set_bind_group(
                             TEXTURE_BIND_GROUP_INDEX,
                             &texture.bind_group,
                             &[],
                         );
                         render_pass.set_index_buffer(
-                            self.quad_renderer.quad_index_buffer.slice(..),
+                            self.virtual_gpu.quad_renderer.quad_index_buffer.slice(..),
                             wgpu::IndexFormat::Uint16,
                         );
                         render_pass.set_vertex_buffer(
                             VERTEX_BUFFER_INDEX,
-                            self.quad_renderer.quad_vertex_buffer.slice(..),
+                            self.virtual_gpu.quad_renderer.quad_vertex_buffer.slice(..),
                         );
                         render_pass.draw_indexed(
                             0..6,
@@ -497,7 +384,9 @@ impl State {
             }
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.virtual_gpu
+            .queue
+            .submit(std::iter::once(encoder.finish()));
         output.present();
 
         self.virtual_render_pass.reset();
@@ -515,7 +404,7 @@ impl State {
             return;
         }
 
-        self.queue.write_buffer(
+        self.virtual_gpu.queue.write_buffer(
             &self.virtual_render_pass.immediate_renderer.buffer,
             self.virtual_render_pass.immediate_renderer.last_byte_index,
             bytemuck::cast_slice(data),
@@ -541,7 +430,7 @@ impl State {
         light.position_range = view_position.xyz().extend(light.position_range.w);
         light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
 
-        self.queue.write_buffer(
+        self.virtual_gpu.queue.write_buffer(
             &self.virtual_render_pass.lights.buffer,
             offset,
             cast_slice(&light.get_light_uniforms()),
@@ -552,7 +441,7 @@ impl State {
 
     pub fn push_matrix(&mut self, matrix: Mat4) {
         let offset = self.virtual_render_pass.inistance_count * size_of::<Mat4>() as u64;
-        self.queue.write_buffer(
+        self.virtual_gpu.queue.write_buffer(
             &self.virtual_render_pass.instance_buffer,
             offset,
             bytemuck::bytes_of(&matrix),
@@ -606,29 +495,5 @@ impl State {
 
         self.push_matrix(Mat4::IDENTITY);
         self.set_texture(0);
-    }
-
-    pub fn load_texture(&mut self, path: &str) -> usize {
-        self.textures.load_texture(&self.device, &self.queue, path)
-    }
-
-    pub fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
-        self.preloaded_renderer
-            .load_static_mesh(&self.device, &self.queue, data, pipeline)
-    }
-
-    pub fn load_static_mesh_indexed(
-        &mut self,
-        data: &[f32],
-        indices: &[u16],
-        pipeline: Pipeline,
-    ) -> usize {
-        self.preloaded_renderer.load_static_mesh_indexed(
-            &self.device,
-            &self.queue,
-            data,
-            indices,
-            pipeline,
-        )
     }
 }
