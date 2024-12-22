@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use bytemuck::cast_slice;
 use glam::{Mat4, Vec3A, Vec4Swizzles};
-use image::ImageReader;
 use pollster::FutureExt;
 use wgpu::{
-    Adapter, BindGroupLayout, Device, Instance, MemoryHints, PipelineLayout, PresentMode, Queue,
-    RenderPipeline, ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
+    Adapter, Device, Instance, MemoryHints, PipelineLayout, PresentMode, Queue, RenderPipeline,
+    ShaderModule, Surface, SurfaceCapabilities, TextureFormat,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -19,10 +18,10 @@ use crate::camera::Camera;
 use crate::game::Game;
 use crate::immediate_renderer::ImmediateRenderer;
 use crate::lights::{Light, Lights};
-use crate::mesh::{self, IndexedMesh, Mesh};
 use crate::pipeline::Pipeline;
+use crate::preloaded_renderer::PreloadedRenderer;
 use crate::quad_renderer::QuadRenderer;
-use crate::textures::{self, DepthTexture, Texture};
+use crate::textures::{self, Textures};
 use crate::virtual_render_pass::{Command, VirtualRenderPass};
 
 pub struct StateApplication {
@@ -128,11 +127,6 @@ pub struct State {
     window: Arc<Window>,
 
     render_pipelines: [RenderPipeline; 7],
-    depth_texture: DepthTexture,
-    texture_bind_group_layout: BindGroupLayout,
-    textures: Vec<Texture>,
-    meshes: Vec<Mesh>,
-    indexed_meshes: Vec<IndexedMesh>,
 
     camera: Camera,
     camera_delta: Vec3A,
@@ -145,6 +139,8 @@ pub struct State {
 
     quad_renderer: QuadRenderer,
     immediate_renderer: ImmediateRenderer,
+    preloaded_renderer: PreloadedRenderer,
+    textures: Textures,
 }
 
 impl State {
@@ -163,14 +159,13 @@ impl State {
         let lights = Lights::new(&device);
         let quad_renderer = QuadRenderer::new(&device, &queue);
         let immediate_renderer = ImmediateRenderer::new(&device);
+        let preloaded_renderer = PreloadedRenderer::new();
+        let textures = Textures::new(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
-
-        let depth_texture =
-            textures::DepthTexture::create_depth_texture(&device, &config, "depth_texture");
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -232,19 +227,14 @@ impl State {
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
 
-            textures: Vec::new(),
-            meshes: Vec::new(),
-            indexed_meshes: Vec::new(),
-
-            texture_bind_group_layout,
-
             virtual_render_pass: VirtualRenderPass::default(),
             instance_buffer_3d: model_matrix_buffer,
-            depth_texture,
 
             lights,
+            textures,
             quad_renderer,
             immediate_renderer,
+            preloaded_renderer,
         };
 
         out.load_texture("assets/default texture.png");
@@ -391,7 +381,7 @@ impl State {
 
         self.surface.configure(&self.device, &self.config);
 
-        self.depth_texture = textures::DepthTexture::create_depth_texture(
+        self.textures.depth_texture = textures::DepthTexture::create_depth_texture(
             &self.device,
             &self.config,
             "depth_texture",
@@ -435,7 +425,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
+                    view: &self.textures.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(f32::NEG_INFINITY),
                         store: wgpu::StoreOp::Store,
@@ -474,7 +464,7 @@ impl State {
                         current_byte_index += *vertex_count as u64 * current_vertex_size as u64;
                     }
                     Command::SetTexture(tex_index) => {
-                        let texture = &self.textures[*tex_index];
+                        let texture = &self.textures.textures[*tex_index];
                         render_pass.set_bind_group(
                             TEXTURE_BIND_GROUP_INDEX,
                             &texture.bind_group,
@@ -485,7 +475,7 @@ impl State {
                         current_model_matrix += 1;
                     }
                     Command::DrawStaticMesh(index) => {
-                        let mesh = &self.meshes[*index];
+                        let mesh = &self.preloaded_renderer.meshes[*index];
                         render_pass
                             .set_pipeline(&self.render_pipelines[mesh.pipeline.get_shader()]);
                         render_pass
@@ -496,7 +486,7 @@ impl State {
                         );
                     }
                     Command::DrawStaticMeshIndexed(index) => {
-                        let mesh = &self.indexed_meshes[*index];
+                        let mesh = &self.preloaded_renderer.indexed_meshes[*index];
                         render_pass
                             .set_pipeline(&self.render_pipelines[mesh.pipeline.get_shader()]);
                         render_pass
@@ -512,7 +502,7 @@ impl State {
                         );
                     }
                     Command::DrawSprite(sprite_index) => {
-                        let texture = &self.textures[*sprite_index];
+                        let texture = &self.textures.textures[*sprite_index];
                         render_pass
                             .set_pipeline(&self.render_pipelines[Pipeline::Quad2d.get_shader()]);
                         render_pass.set_bind_group(
@@ -648,94 +638,12 @@ impl State {
     }
 
     pub fn load_texture(&mut self, path: &str) -> usize {
-        let image = ImageReader::open(path).unwrap().decode().unwrap();
-        let image = image.to_rgba8();
-        let dimensions = image.dimensions();
-        let size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            label: Some("diffuse_texture"),
-            view_formats: &[],
-        });
-
-        let sampler = self.device.create_sampler(&textures::sampler_descriptor());
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
-            label: Some(path),
-        });
-
-        self.queue.write_texture(
-            // Tells wgpu where to copy the pixel data
-            wgpu::ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            // The actual pixel data
-            &image,
-            // The layout of the texture
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
-            },
-            size,
-        );
-
-        let texture = Texture { bind_group };
-
-        self.textures.push(texture);
-        self.textures.len() - 1
+        self.textures.load_texture(&self.device, &self.queue, path)
     }
 
     pub fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
-        let attribute_count = pipeline.get_attribute_count();
-        let total_attributes = data.len();
-        let vertex_count = total_attributes / attribute_count;
-        let bytes = vertex_count * attribute_count * 4;
-
-        if total_attributes % attribute_count != 0 {
-            panic!("Invalid mesh list, size mismatch");
-        }
-
-        let vertex_buffer = self
-            .device
-            .create_buffer(&mesh::vertex_buffer_descriptor(bytes as u64, None));
-
-        self.queue.write_buffer(&vertex_buffer, 0, cast_slice(data));
-        //self.queue.submit([]);
-
-        let mesh = Mesh {
-            vertex_buffer,
-            pipeline,
-            vertex_count: vertex_count as u32,
-        };
-
-        self.meshes.push(mesh);
-        self.meshes.len() - 1
+        self.preloaded_renderer
+            .load_static_mesh(&self.device, &self.queue, data, pipeline)
     }
 
     pub fn load_static_mesh_indexed(
@@ -744,37 +652,12 @@ impl State {
         indices: &[u16],
         pipeline: Pipeline,
     ) -> usize {
-        let attribute_count = pipeline.get_attribute_count();
-        let total_attributes = data.len();
-        let vertex_count = total_attributes / attribute_count;
-        let bytes = vertex_count * attribute_count * 4;
-
-        if total_attributes % attribute_count != 0 {
-            panic!("Invalid mesh list, size mismatch");
-        }
-
-        let vertex_buffer = self
-            .device
-            .create_buffer(&mesh::vertex_buffer_descriptor(bytes as u64, None));
-
-        let bytes = std::mem::size_of_val(indices);
-        let index_buffer = self
-            .device
-            .create_buffer(&mesh::index_buffer_descriptor(bytes as u64, None));
-
-        self.queue.write_buffer(&vertex_buffer, 0, cast_slice(data));
-        self.queue
-            .write_buffer(&index_buffer, 0, cast_slice(indices));
-        // self.queue.submit([]);
-
-        let mesh = IndexedMesh {
-            vertex_buffer,
-            index_buffer,
+        self.preloaded_renderer.load_static_mesh_indexed(
+            &self.device,
+            &self.queue,
+            data,
+            indices,
             pipeline,
-            index_count: indices.len() as u32,
-        };
-
-        self.indexed_meshes.push(mesh);
-        self.indexed_meshes.len() - 1
+        )
     }
 }

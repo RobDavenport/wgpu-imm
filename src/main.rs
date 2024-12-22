@@ -9,6 +9,7 @@ mod importer;
 mod lights;
 mod mesh;
 mod pipeline;
+mod preloaded_renderer;
 mod quad_renderer;
 mod spec_tex;
 mod textures;
