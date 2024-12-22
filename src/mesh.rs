@@ -22,23 +22,24 @@ pub fn quad_vertex_buffer_descriptor() -> wgpu::BufferDescriptor<'static> {
     }
 }
 
+// Reverse Winding since it's not multiplied by View Matrix
 pub const fn quad_vertices() -> &'static [f32; 5 * 4] {
-    // 0--3
-    // |\ |
-    // | \|
-    // 1--2
+    // 0--1
+    // | /|
+    // |/ |
+    // 2--3
     &[
         -0.5, 0.5, 0.0, 0.0, 1.0, // Top-left vertex
+        0.5, 0.5, 0.0, 1.0, 1.0, // Top-right vertex
         -0.5, -0.5, 0.0, 0.0, 0.0, // Bottom-left vertex
         0.5, -0.5, 0.0, 1.0, 0.0, // Bottom-right vertex
-        0.5, 0.5, 0.0, 1.0, 1.0, // Top-right vertex
     ]
 }
 
 pub const fn quad_indices() -> &'static [u16; 6] {
     &[
-        0, 1, 2, // First triangle (bottom-left to top-right)
-        2, 3, 0, // Second triangle (top-right to top-left)
+        0, 1, 2, // First triangle
+        1, 3, 2, // Second triangle
     ]
 }
 

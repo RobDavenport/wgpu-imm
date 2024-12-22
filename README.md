@@ -3,8 +3,7 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Add 2d quad rendering
-- Fix camera stuff (pos or negative z axis confusion)
+
 
 TODO:
 - Improve Lighting
@@ -18,8 +17,6 @@ TODO:
 - Move stuff from app State over to VirtualGpu
   - Add size/memory limits
 - Make Camera / View Matrix setup stuff available from Game
-
-
 - Consider how to handle dynamic or procedural textures
 - Support multiple viewports
   - figure out API for this
@@ -31,3 +28,11 @@ Longer Term Ideas:
 - Procedural Environment Maps
   - Reflections for Metallic Surfaces
   - IBR image based lighting
+
+
+Implementation Notes:
+For 2d Quad Rendering...
+- Z -1.0 is "Closest to the screen"
+- Z 1.0 is "Farthest from the screen"
+- Any values less than -1, or greater than 1.0, wont be drawn as they fall outside of NDC coordinates
+- Prefer lower values instead of 0.0 as this can intersect with 3d geometry

@@ -6,11 +6,11 @@ use std::f32::consts::PI;
 // Helper functions
 fn f_unreal(f_0: f32, v_dot_h: f32) -> f32 {
     let exponent = ((-5.55473 * v_dot_h) - 6.98316) * v_dot_h;
-    return f_0 + ((1.0 - f_0) * 2.0f32.powf(exponent));
+    f_0 + ((1.0 - f_0) * 2.0f32.powf(exponent))
 }
 
 fn normal_approx(shininess: f32) -> f32 {
-    return (0.0397436 * shininess) + 0.0856832;
+    (0.0397436 * shininess) + 0.0856832
 }
 
 fn generate_normal(step: usize, max: usize) -> Vec3 {

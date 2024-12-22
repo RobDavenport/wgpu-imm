@@ -216,11 +216,7 @@ pub fn import_gltf(path: &str) -> Importer {
             let end = start + (attribute.count() * attribute.size());
             let view = &blob[start..end];
 
-            let skip = if attribute.dimensions() == Dimensions::Vec4 {
-                true
-            } else {
-                false
-            };
+            let skip = attribute.dimensions() == Dimensions::Vec4;
 
             match kind {
                 gltf::Semantic::Positions => {

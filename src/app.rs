@@ -449,7 +449,7 @@ impl State {
                 module: shader,
                 entry_point: Some(pipeline.fragment_shader()),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: format,
+                    format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -467,7 +467,7 @@ impl State {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: texture::DepthTexture::DEPTH_FORMAT,
                 depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Greater,
+                depth_compare: wgpu::CompareFunction::GreaterEqual,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -544,7 +544,7 @@ impl State {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0.0),
+                        load: wgpu::LoadOp::Clear(f32::NEG_INFINITY),
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -680,7 +680,7 @@ impl State {
 
     pub fn push_light(&mut self, light: &Light) {
         let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
-        let mut light = light.clone();
+        let mut light = *light;
         let view_position = self.camera.get_view() * light.position_range.xyz().extend(1.0);
         let view_direction = self.camera.get_view() * light.direction_angle.xyz().extend(0.0);
 
@@ -743,12 +743,12 @@ impl State {
         const CAMERA_ROT_SPEED: f32 = 0.75;
 
         let forward = self.camera.get_forward();
-        let right = Vec3A::Y.cross(forward);
+        let right = forward.cross(Vec3A::Y);
 
         self.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
-        self.camera.eye += right * self.camera_delta.x * DT * CAMERA_SPEED;
+        self.camera.eye -= right * self.camera_delta.x * DT * CAMERA_SPEED;
 
-        self.camera.yaw += self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
+        self.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
 
         self.push_matrix(Mat4::IDENTITY);
         self.set_texture(0);

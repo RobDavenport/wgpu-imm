@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use glam::{Mat4, Vec3A};
 use wgpu::SurfaceConfiguration;
 
@@ -31,7 +29,7 @@ impl Camera {
     }
 
     pub fn get_forward(&self) -> Vec3A {
-        Vec3A::new(self.yaw.sin(), 0.0, self.yaw.cos())
+        Vec3A::new(self.yaw.sin(), 0.0, -self.yaw.cos())
     }
 
     pub fn get_view(&self) -> Mat4 {
@@ -56,13 +54,6 @@ impl Camera {
     }
 
     pub fn get_projection_2d(&self) -> Mat4 {
-        Mat4::orthographic_rh(
-            0.0,
-            self.width as f32,
-            self.height as f32,
-            0.0,
-            -100.0,
-            100.0,
-        )
+        Mat4::orthographic_rh(0.0, self.width as f32, self.height as f32, 0.0, 1.0, -1.0)
     }
 }

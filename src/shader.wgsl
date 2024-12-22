@@ -463,7 +463,7 @@ fn vs_quad_2d(
     );
 
     out.uvs = model.uvs;
-    out.clip_position = camera.ortho * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.ortho * model_matrix * vec4<f32>(model.position, 1.0);
 
     return out;
 }
