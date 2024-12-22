@@ -1,11 +1,13 @@
 use wgpu::RenderPipeline;
 
 use crate::{
+    camera::Camera,
+    immediate_renderer::ImmediateRenderer,
+    lights::Lights,
     pipeline::Pipeline,
     preloaded_renderer::PreloadedRenderer,
     quad_renderer::QuadRenderer,
     textures::{self, Textures},
-    virtual_render_pass::VirtualRenderPass,
 };
 
 pub struct VirtualGpu {
@@ -16,6 +18,12 @@ pub struct VirtualGpu {
     pub textures: Textures,
     pub quad_renderer: QuadRenderer,
     pub preloaded_renderer: PreloadedRenderer,
+    pub immediate_renderer: ImmediateRenderer,
+
+    pub camera: Camera,
+    pub lights: Lights,
+
+    pub instance_buffer: wgpu::Buffer,
 }
 
 impl VirtualGpu {
@@ -23,38 +31,52 @@ impl VirtualGpu {
         device: wgpu::Device,
         queue: wgpu::Queue,
         config: &wgpu::SurfaceConfiguration,
-        virtual_render_pass: &VirtualRenderPass,
     ) -> Self {
-        let mut textures = Textures::new(&device, config);
-
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Master Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
+        let camera = Camera::new(&device, config);
+        let mut textures = Textures::new(&device, config);
+        let lights = Lights::new(&device);
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
-                    &virtual_render_pass.camera.bind_group_layout,
+                    &camera.bind_group_layout,
                     &textures.bind_group_layout,
-                    &virtual_render_pass.lights.bind_group_layout,
+                    &lights.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
 
-        let render_pipelines =
-            generate_render_pipelines(&device, &shader, &render_pipeline_layout, config.format);
-
         textures.load_texture(&device, &queue, "assets/default texture.png");
 
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            size: 8 * 1024 * 1024, // 8mb
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
-            render_pipelines,
+            render_pipelines: generate_render_pipelines(
+                &device,
+                &shader,
+                &render_pipeline_layout,
+                config.format,
+            ),
             textures,
             quad_renderer: QuadRenderer::new(&device, &queue),
             preloaded_renderer: PreloadedRenderer::new(),
+            immediate_renderer: ImmediateRenderer::new(&device),
+            camera,
+            lights,
             device,
             queue,
+            instance_buffer,
         }
     }
 

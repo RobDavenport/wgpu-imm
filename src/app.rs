@@ -139,8 +139,8 @@ impl State {
         let config = Self::create_surface_config(size, surface_caps);
         surface.configure(&device, &config);
 
-        let virtual_render_pass = VirtualRenderPass::new(&device, &config);
-        let virtual_gpu = VirtualGpu::new(device, queue, &config, &virtual_render_pass);
+        let virtual_render_pass = VirtualRenderPass::new();
+        let virtual_gpu = VirtualGpu::new(device, queue, &config);
 
         Self {
             surface,
@@ -243,9 +243,9 @@ impl State {
                 });
 
         self.virtual_gpu.queue.write_buffer(
-            &self.virtual_render_pass.camera.buffer,
+            &self.virtual_gpu.camera.buffer,
             0,
-            bytemuck::cast_slice(&self.virtual_render_pass.camera.get_camera_uniforms()),
+            bytemuck::cast_slice(&self.virtual_gpu.camera.get_camera_uniforms()),
         );
 
         {
@@ -278,17 +278,17 @@ impl State {
 
             render_pass.set_bind_group(
                 CAMERA_BIND_GROUP_INDEX,
-                &self.virtual_render_pass.camera.bind_group,
+                &self.virtual_gpu.camera.bind_group,
                 &[],
             );
             render_pass.set_bind_group(
                 LIGHT_BIND_GROUP_INDEX,
-                &self.virtual_render_pass.lights.bind_group,
+                &self.virtual_gpu.lights.bind_group,
                 &[],
             );
             render_pass.set_vertex_buffer(
                 INSTANCE_BUFFER_INDEX,
-                self.virtual_render_pass.instance_buffer.slice(..),
+                self.virtual_gpu.instance_buffer.slice(..),
             );
             let mut current_byte_index = 0;
             let mut current_vertex_size = 0;
@@ -305,7 +305,7 @@ impl State {
                     Command::Draw(vertex_count) => {
                         render_pass.set_vertex_buffer(
                             VERTEX_BUFFER_INDEX,
-                            self.virtual_render_pass
+                            self.virtual_gpu
                                 .immediate_renderer
                                 .buffer
                                 .slice(current_byte_index..),
@@ -405,8 +405,8 @@ impl State {
         }
 
         self.virtual_gpu.queue.write_buffer(
-            &self.virtual_render_pass.immediate_renderer.buffer,
-            self.virtual_render_pass.immediate_renderer.last_byte_index,
+            &self.virtual_gpu.immediate_renderer.buffer,
+            self.virtual_render_pass.immediate_buffer_last_index,
             bytemuck::cast_slice(data),
         );
 
@@ -416,22 +416,22 @@ impl State {
         self.virtual_render_pass
             .commands
             .push(Command::Draw(vertex_count as u32));
-        self.virtual_render_pass.immediate_renderer.last_byte_index += total_attributes as u64 * 4;
+        self.virtual_render_pass.immediate_buffer_last_index += total_attributes as u64 * 4;
     }
 
     pub fn push_light(&mut self, light: &Light) {
         let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
         let mut light = *light;
         let view_position =
-            self.virtual_render_pass.camera.get_view() * light.position_range.xyz().extend(1.0);
+            self.virtual_gpu.camera.get_view() * light.position_range.xyz().extend(1.0);
         let view_direction =
-            self.virtual_render_pass.camera.get_view() * light.direction_angle.xyz().extend(0.0);
+            self.virtual_gpu.camera.get_view() * light.direction_angle.xyz().extend(0.0);
 
         light.position_range = view_position.xyz().extend(light.position_range.w);
         light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
 
         self.virtual_gpu.queue.write_buffer(
-            &self.virtual_render_pass.lights.buffer,
+            &self.virtual_gpu.lights.buffer,
             offset,
             cast_slice(&light.get_light_uniforms()),
         );
@@ -442,7 +442,7 @@ impl State {
     pub fn push_matrix(&mut self, matrix: Mat4) {
         let offset = self.virtual_render_pass.inistance_count * size_of::<Mat4>() as u64;
         self.virtual_gpu.queue.write_buffer(
-            &self.virtual_render_pass.instance_buffer,
+            &self.virtual_gpu.instance_buffer,
             offset,
             bytemuck::bytes_of(&matrix),
         );
@@ -485,13 +485,13 @@ impl State {
         const CAMERA_SPEED: f32 = 2.5;
         const CAMERA_ROT_SPEED: f32 = 0.75;
 
-        let forward = self.virtual_render_pass.camera.get_forward();
+        let forward = self.virtual_gpu.camera.get_forward();
         let right = forward.cross(Vec3A::Y);
 
-        self.virtual_render_pass.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
-        self.virtual_render_pass.camera.eye -= right * self.camera_delta.x * DT * CAMERA_SPEED;
+        self.virtual_gpu.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
+        self.virtual_gpu.camera.eye -= right * self.camera_delta.x * DT * CAMERA_SPEED;
 
-        self.virtual_render_pass.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
+        self.virtual_gpu.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
 
         self.push_matrix(Mat4::IDENTITY);
         self.set_texture(0);

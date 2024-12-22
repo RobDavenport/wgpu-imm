@@ -3,7 +3,9 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Move stuff from app State over to VirtualGpu
+- Move stuff from app State over to VirtualGpu/VirtualRenderPass
+- Cleaning up Game Init/Draw function parameters
+- Make Virtual Render Pass a temp struct, and re-use command buffers from VGPU...
 
 TODO:
 - Improve Lighting
