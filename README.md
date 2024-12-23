@@ -3,11 +3,10 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Move stuff from app State over to VirtualGpu/VirtualRenderPass
-- Cleaning up Game Init/Draw function parameters
-- Make Virtual Render Pass a temp struct, and re-use command buffers from VGPU...
 
 TODO:
+- Clean up App/State/VGpu More...
+  - Move Surface out of App into VGPU
 - Improve Lighting
   - Add Attenuation/Range Falloff
   - Add spotlight
@@ -22,6 +21,7 @@ TODO:
 - Support multiple viewports
   - figure out API for this
   - could include Scissor rect if necessary
+
 
 Longer Term Ideas:
 - Single "immediate mode" geometry and texture buffer always mapped to specific addresses

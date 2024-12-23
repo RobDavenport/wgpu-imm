@@ -1,3 +1,5 @@
+// This is the old shader just kept around as a reference.
+
 // Consts
 const MAX_LIGHTS = 8;
 

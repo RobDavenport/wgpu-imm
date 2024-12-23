@@ -33,7 +33,7 @@ impl Textures {
         Self {
             bind_group_layout,
             textures: Vec::new(),
-            depth_texture: DepthTexture::create_depth_texture(&device, &config, "depth_texture"),
+            depth_texture: DepthTexture::create_depth_texture(device, config, "depth_texture"),
         }
     }
 

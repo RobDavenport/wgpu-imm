@@ -1,9 +1,8 @@
 use crate::{
-    app::State,
+    contexts::{Draw3dContext, Init3dContext},
     importer::{self},
     lights::Light,
     pipeline::Pipeline,
-    virtual_gpu::VirtualGpu,
 };
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
 
@@ -38,7 +37,7 @@ impl Game {
         }
     }
 
-    pub fn init(&mut self, gpu: &mut VirtualGpu) {
+    pub fn init(&mut self, gpu: &mut impl Init3dContext) {
         self.tex_index = gpu.load_texture("assets/Fox.png");
         self.tex_grid = gpu.load_texture("assets/color grid 128x128.png");
         let (vertices, indices) =
@@ -59,7 +58,7 @@ impl Game {
         self.t += 1.0 / 360.0;
     }
 
-    pub fn draw(&self, state: &mut State) {
+    pub fn draw(&self, state: &mut impl Draw3dContext) {
         state.push_matrix(Mat4::IDENTITY);
 
         state.push_matrix(Mat4::from_translation(Vec3::new(0.0, 1.0, -2.0)));

@@ -1,14 +1,25 @@
+use bytemuck::cast_slice;
+use glam::{Mat4, Vec4Swizzles};
 use wgpu::RenderPipeline;
 
 use crate::{
     camera::Camera,
+    contexts,
     immediate_renderer::ImmediateRenderer,
-    lights::Lights,
+    lights::{Light, Lights},
     pipeline::Pipeline,
     preloaded_renderer::PreloadedRenderer,
     quad_renderer::QuadRenderer,
     textures::{self, Textures},
+    virtual_render_pass::{Command, VirtualRenderPass},
 };
+
+pub const CAMERA_BIND_GROUP_INDEX: u32 = 0;
+pub const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
+pub const LIGHT_BIND_GROUP_INDEX: u32 = 2;
+
+pub const VERTEX_BUFFER_INDEX: u32 = 0;
+pub const INSTANCE_BUFFER_INDEX: u32 = 1;
 
 pub struct VirtualGpu {
     pub device: wgpu::Device,
@@ -24,6 +35,7 @@ pub struct VirtualGpu {
     pub lights: Lights,
 
     pub instance_buffer: wgpu::Buffer,
+    pub virtual_render_pass: VirtualRenderPass,
 }
 
 impl VirtualGpu {
@@ -77,31 +89,60 @@ impl VirtualGpu {
             device,
             queue,
             instance_buffer,
+            virtual_render_pass: VirtualRenderPass::new(),
         }
     }
 
-    pub fn load_texture(&mut self, path: &str) -> usize {
-        self.textures.load_texture(&self.device, &self.queue, path)
-    }
+    pub fn render(&mut self, view: wgpu::TextureView) {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
-    pub fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
-        self.preloaded_renderer
-            .load_static_mesh(&self.device, &self.queue, data, pipeline)
-    }
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.textures.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(f32::NEG_INFINITY),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
 
-    pub fn load_static_mesh_indexed(
-        &mut self,
-        data: &[f32],
-        indices: &[u16],
-        pipeline: Pipeline,
-    ) -> usize {
-        self.preloaded_renderer.load_static_mesh_indexed(
-            &self.device,
-            &self.queue,
-            data,
-            indices,
-            pipeline,
-        )
+            self.queue.write_buffer(
+                &self.camera.buffer,
+                0,
+                bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
+            );
+
+            render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
+            render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
+            render_pass.set_vertex_buffer(INSTANCE_BUFFER_INDEX, self.instance_buffer.slice(..));
+
+            self.virtual_render_pass.execute(&mut render_pass, &self);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        self.virtual_render_pass.reset();
     }
 }
 
@@ -178,4 +219,109 @@ fn create_render_pipeline(
         multiview: None,
         cache: None,
     })
+}
+
+impl contexts::Init3dContext for VirtualGpu {
+    fn load_texture(&mut self, path: &str) -> usize {
+        self.textures.load_texture(&self.device, &self.queue, path)
+    }
+
+    fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
+        self.preloaded_renderer
+            .load_static_mesh(&self.device, &self.queue, data, pipeline)
+    }
+
+    fn load_static_mesh_indexed(
+        &mut self,
+        data: &[f32],
+        indices: &[u16],
+        pipeline: Pipeline,
+    ) -> usize {
+        self.preloaded_renderer.load_static_mesh_indexed(
+            &self.device,
+            &self.queue,
+            data,
+            indices,
+            pipeline,
+        )
+    }
+}
+
+impl contexts::Draw3dContext for VirtualGpu {
+    fn draw_tri_list(&mut self, data: &[f32], pipeline: Pipeline) {
+        let attribute_count = pipeline.get_attribute_count();
+        let total_attributes = data.len();
+        let vertex_count = total_attributes / attribute_count;
+
+        if total_attributes % attribute_count != 0 {
+            println!("Invalid triangle list, size mismatch");
+            return;
+        }
+
+        self.queue.write_buffer(
+            &self.immediate_renderer.buffer,
+            self.virtual_render_pass.immediate_buffer_last_index,
+            bytemuck::cast_slice(data),
+        );
+
+        self.virtual_render_pass
+            .commands
+            .push(Command::SetPipeline(pipeline));
+        self.virtual_render_pass
+            .commands
+            .push(Command::Draw(vertex_count as u32));
+        self.virtual_render_pass.immediate_buffer_last_index += total_attributes as u64 * 4;
+    }
+
+    fn push_light(&mut self, light: &Light) {
+        let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
+        let mut light = *light;
+        let view_position = self.camera.get_view() * light.position_range.xyz().extend(1.0);
+        let view_direction = self.camera.get_view() * light.direction_angle.xyz().extend(0.0);
+
+        light.position_range = view_position.xyz().extend(light.position_range.w);
+        light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
+
+        self.queue.write_buffer(
+            &self.lights.buffer,
+            offset,
+            cast_slice(&light.get_light_uniforms()),
+        );
+
+        self.virtual_render_pass.light_count += 1;
+    }
+
+    fn push_matrix(&mut self, matrix: Mat4) {
+        let offset = self.virtual_render_pass.inistance_count * size_of::<Mat4>() as u64;
+        self.queue
+            .write_buffer(&self.instance_buffer, offset, bytemuck::bytes_of(&matrix));
+        self.virtual_render_pass
+            .commands
+            .push(Command::SetModelMatrix);
+        self.virtual_render_pass.inistance_count += 1;
+    }
+
+    fn draw_static_mesh(&mut self, index: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::DrawStaticMesh(index))
+    }
+
+    fn draw_static_mesh_indexed(&mut self, index: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::DrawStaticMeshIndexed(index))
+    }
+
+    fn draw_sprite(&mut self, index: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::DrawSprite(index));
+    }
+
+    fn set_texture(&mut self, tex_id: usize) {
+        self.virtual_render_pass
+            .commands
+            .push(Command::SetTexture(tex_id));
+    }
 }

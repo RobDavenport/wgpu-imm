@@ -3,6 +3,7 @@ use winit::event_loop::EventLoop;
 
 mod app;
 mod camera;
+mod contexts;
 mod game;
 mod immediate_renderer;
 mod importer;
@@ -16,6 +17,7 @@ mod textures;
 mod vertex;
 mod virtual_gpu;
 mod virtual_render_pass;
+mod wgpu_setup;
 
 use app::StateApplication;
 
