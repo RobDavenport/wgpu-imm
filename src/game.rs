@@ -66,17 +66,18 @@ impl Game {
 
         state.draw_tri_list(&self.immediate_cube, Pipeline::Color);
 
-        state.push_matrix(
-            Mat4::from_translation(Vec3::new(50.0, 50.0, 1.0))
-                * Mat4::from_scale(Vec3::splat(128.0)),
-        );
-        state.draw_sprite(self.tex_grid);
+        // state.push_matrix(
+        //     Mat4::from_translation(Vec3::new(50.0, 50.0, 1.0))
+        //         * Mat4::from_scale(Vec3::splat(128.0)),
+        // );
+        // state.draw_sprite(self.tex_grid);
 
-        state.push_matrix(
-            Mat4::from_translation(Vec3::new(100.0, 150.0, 0.999))
-                * Mat4::from_scale(Vec3::splat(256.0)),
-        );
-        state.draw_sprite(self.tex_index);
+        // state.push_matrix(
+        //     Mat4::from_translation(Vec3::new(100.0, 150.0, 0.999))
+        //         * Mat4::from_scale(Vec3::splat(256.0)),
+        // );
+        // state.draw_sprite(self.tex_index);
+        state.set_texture(self.tex_index);
         state.push_matrix(Mat4::from_scale(Vec3::splat(0.025)));
         state.draw_tri_list(&self.immediate_fox, Pipeline::Uv);
 

@@ -1,10 +1,11 @@
 use bytemuck::cast_slice;
 use glam::{Mat4, Vec4Swizzles};
-use wgpu::RenderPipeline;
+use wgpu::{RenderPipeline, TextureView};
 
 use crate::{
     camera::Camera,
     contexts,
+    frame_buffer::{FrameBuffer, FRAME_BUFFER_BIND_GROUP_INDEX, SCALING_BIND_GROUP_INDEX},
     immediate_renderer::ImmediateRenderer,
     lights::{Light, Lights},
     pipeline::Pipeline,
@@ -36,6 +37,8 @@ pub struct VirtualGpu {
 
     pub instance_buffer: wgpu::Buffer,
     pub virtual_render_pass: VirtualRenderPass,
+
+    pub frame_buffer: FrameBuffer,
 }
 
 impl VirtualGpu {
@@ -73,6 +76,8 @@ impl VirtualGpu {
             mapped_at_creation: false,
         });
 
+        let frame_buffer = FrameBuffer::new(&device, config);
+
         Self {
             render_pipelines: generate_render_pipelines(
                 &device,
@@ -90,21 +95,25 @@ impl VirtualGpu {
             queue,
             instance_buffer,
             virtual_render_pass: VirtualRenderPass::new(),
+            frame_buffer,
         }
     }
 
-    pub fn render(&mut self, view: wgpu::TextureView) {
+    pub fn render(&mut self, surface_view: &TextureView) {
+        let view = &self.frame_buffer.view;
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
+                label: Some("Main Render Encoder"),
             });
 
+        // Game Render Pass
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Main Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -138,7 +147,48 @@ impl VirtualGpu {
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
             render_pass.set_vertex_buffer(INSTANCE_BUFFER_INDEX, self.instance_buffer.slice(..));
 
-            self.virtual_render_pass.execute(&mut render_pass, &self);
+            self.virtual_render_pass.execute(&mut render_pass, self);
+        }
+
+        // Frame Buffer Render Pass
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Frame Buffer Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&self.frame_buffer.pipeline);
+            self.queue.write_buffer(
+                &self.frame_buffer.scaling_buffer,
+                0,
+                bytemuck::cast_slice(&self.frame_buffer.scaling),
+            );
+            render_pass.set_bind_group(
+                SCALING_BIND_GROUP_INDEX,
+                &self.frame_buffer.scaling_bind_group,
+                &[],
+            );
+            render_pass.set_bind_group(
+                FRAME_BUFFER_BIND_GROUP_INDEX,
+                &self.frame_buffer.texture_bind_group,
+                &[],
+            );
+            render_pass.draw(0..4, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

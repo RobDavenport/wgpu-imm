@@ -16,9 +16,9 @@ struct Camera {
 
 // Texture Bindings
 @group(1) @binding(0)
-var t_diffuse: texture_2d<f32>;
+var t_albedo: texture_2d<f32>;
 @group(1) @binding(1)
-var s_diffuse: sampler;
+var s_albedo: sampler;
 
 // Light Bindings
 @group(2) @binding(0)
@@ -119,7 +119,7 @@ fn vs_uv(
 
 @fragment
 fn fs_uv(in: VertexUvOut) -> @location(0) vec4<f32> {
-    return textureSample(t_diffuse, s_diffuse, in.uvs);
+    return textureSample(t_albedo, s_albedo, in.uvs);
 }
 
 // Vertex Color + UVs
@@ -155,7 +155,7 @@ fn vs_color_uv(
 
 @fragment
 fn fs_color_uv(in: VertexColorUvOut) -> @location(0) vec4<f32> {
-    var texel = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
+    var texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     return vec4<f32>(in.color * texel, 1.0);
 }
 
@@ -250,7 +250,7 @@ fn vs_uv_lit(
 
 @fragment
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
-    let frag_color = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
+    let frag_color = textureSample(t_albedo, s_albedo, in.uvs).rgb;
 
     let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
@@ -301,7 +301,7 @@ fn vs_color_uv_lit(
 
 @fragment
 fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
-    let texel = textureSample(t_diffuse, s_diffuse, in.uvs).rgb;
+    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     let frag_color = in.color * texel.rgb;
 
     let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);

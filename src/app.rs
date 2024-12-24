@@ -10,7 +10,7 @@ use winit::window::{Window, WindowId};
 
 use crate::contexts::Draw3dContext;
 use crate::game::Game;
-use crate::textures::{self};
+use crate::resolution::Resolution;
 use crate::virtual_gpu::VirtualGpu;
 use crate::wgpu_setup;
 
@@ -30,8 +30,18 @@ impl StateApplication {
 
 impl ApplicationHandler for StateApplication {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let resolution = Resolution::Full;
+        let (width, height) = resolution.dimensions();
+
+        let inner_size = PhysicalSize { width, height };
+
         let window = event_loop
-            .create_window(Window::default_attributes().with_title("Hello!"))
+            .create_window(
+                Window::default_attributes()
+                    .with_title("wgpu-imm")
+                    .with_inner_size(inner_size)
+                    .with_min_inner_size(inner_size),
+            )
             .unwrap();
 
         let mut state = State::new(window);
@@ -105,7 +115,6 @@ pub struct State {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
 
-    size: PhysicalSize<u32>,
     window: Arc<Window>,
 
     camera_delta: Vec3A,
@@ -131,7 +140,6 @@ impl State {
         Self {
             surface,
             config,
-            size,
             window: window_arc,
             camera_delta: Vec3A::ZERO,
             camera_yaw_delta: 0.0,
@@ -141,30 +149,24 @@ impl State {
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        self.size = new_size;
-
         self.config.width = new_size.width;
         self.config.height = new_size.height;
 
+        self.virtual_gpu
+            .frame_buffer
+            .adjust_scale(new_size.width, new_size.height);
+
         self.surface
             .configure(&self.virtual_gpu.device, &self.config);
-
-        self.virtual_gpu.textures.depth_texture = textures::DepthTexture::create_depth_texture(
-            &self.virtual_gpu.device,
-            &self.config,
-            "depth_texture",
-        );
-
-        println!("Resized to {:?} from state!", new_size);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture().unwrap();
-        let view = output
+        let surface_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.virtual_gpu.render(view);
+        self.virtual_gpu.render(&surface_view);
         output.present();
 
         Ok(())
