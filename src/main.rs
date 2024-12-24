@@ -4,6 +4,7 @@ use winit::event_loop::EventLoop;
 mod app;
 mod camera;
 mod contexts;
+mod environment_map;
 mod frame_buffer;
 mod game;
 mod immediate_renderer;

@@ -5,6 +5,7 @@ use wgpu::{RenderPipeline, TextureView};
 use crate::{
     camera::Camera,
     contexts,
+    environment_map::{EnvironmentMap, ENVIRONMENT_MAP_BIND_GROUP},
     frame_buffer::{FrameBuffer, FRAME_BUFFER_BIND_GROUP_INDEX, SCALING_BIND_GROUP_INDEX},
     immediate_renderer::ImmediateRenderer,
     lights::{Light, Lights},
@@ -39,6 +40,7 @@ pub struct VirtualGpu {
     pub virtual_render_pass: VirtualRenderPass,
 
     pub frame_buffer: FrameBuffer,
+    pub environment_map: EnvironmentMap,
 }
 
 impl VirtualGpu {
@@ -55,6 +57,7 @@ impl VirtualGpu {
         let camera = Camera::new(&device, config);
         let mut textures = Textures::new(&device, config);
         let lights = Lights::new(&device);
+        let environment_map = EnvironmentMap::new(&device, &queue);
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -63,6 +66,7 @@ impl VirtualGpu {
                     &camera.bind_group_layout,
                     &textures.bind_group_layout,
                     &lights.bind_group_layout,
+                    &environment_map.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -96,6 +100,7 @@ impl VirtualGpu {
             instance_buffer,
             virtual_render_pass: VirtualRenderPass::new(),
             frame_buffer,
+            environment_map,
         }
     }
 
@@ -145,6 +150,11 @@ impl VirtualGpu {
 
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
+            render_pass.set_bind_group(
+                ENVIRONMENT_MAP_BIND_GROUP,
+                &self.environment_map.bind_group,
+                &[],
+            );
             render_pass.set_vertex_buffer(INSTANCE_BUFFER_INDEX, self.instance_buffer.slice(..));
 
             self.virtual_render_pass.execute(&mut render_pass, self);

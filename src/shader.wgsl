@@ -24,6 +24,12 @@ var s_albedo: sampler;
 @group(2) @binding(0)
 var<uniform> lights: array<Light, MAX_LIGHTS>;
 
+// Environmap Bindings
+@group(3) @binding(0)
+var t_env: texture_cube<f32>;
+@group(3) @binding(1)
+var s_env: sampler;
+
 struct Light {
     color_intensity: vec4<f32>,
     position_range: vec4<f32>,
@@ -343,7 +349,7 @@ fn calculate_light(
     let view_dir = normalize(-view_position);
     let n_dot_v = max(dot(view_normal, view_dir), 0.0);
 
-    // Identify light type
+    // // Identify light type
     if light.position_range.w < 0.0 {
         // Global Light (Ambient or Directional)
 
@@ -440,11 +446,18 @@ fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>,
     var output_color = albedo * emissive; // Emissive Factor
     let n_normal = normalize(normal);
 
+    let view_dir = normalize(-view_pos);
+    var reflect_dir = normalize(reflect(view_dir, n_normal));
+    reflect_dir.y = -reflect_dir.y;
+    let reflect_color = textureSample(t_env, s_env, reflect_dir).rgb;
+
     for (var i = 0; i < MAX_LIGHTS; i++) {
         let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i]);
 
         output_color += l;
     }
+
+    output_color *= mix(vec3<f32>(1.0), reflect_color, metallic);
 
     return output_color;
 }

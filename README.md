@@ -3,6 +3,8 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
+- Fix Weird Refelction Behavior, check energy conservation
+- Add MipMaps for roughness etc
 
 TODO:
 - Clean up App/State/VGpu More...

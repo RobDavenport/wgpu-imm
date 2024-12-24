@@ -30,7 +30,7 @@ impl StateApplication {
 
 impl ApplicationHandler for StateApplication {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let resolution = Resolution::Full;
+        let resolution = Resolution::Low;
         let (width, height) = resolution.dimensions();
 
         let inner_size = PhysicalSize { width, height };
