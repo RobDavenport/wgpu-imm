@@ -209,7 +209,12 @@ fn vs_color_lit(
 fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     let frag_color = in.color;
 
-    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
+    // Convert to pixel coordinates
+    let pixel = in.clip_position.xy / vec2<f32>(480.0, 270.0); // xy in screen space
+    //let pixel = in.clip_position.xy / vec2<f32>(1920.0, 1080.0); // xy in screen space
+
+
+    let output_color = calculate_lighting(pixel, frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -258,7 +263,7 @@ fn vs_uv_lit(
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
     let frag_color = textureSample(t_albedo, s_albedo, in.uvs).rgb;
 
-    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(in.clip_position.xy, frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -310,7 +315,7 @@ fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     let frag_color = in.color * texel.rgb;
 
-    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(in.clip_position.xy, frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -438,7 +443,35 @@ fn tri_ace_directional(
     return (diffuse + specular) * n_dot_l;
 }
 
-fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
+fn hash3(p: vec3<f32>) -> vec3<f32> {
+    return fract(sin(p * vec3<f32>(127.1, 311.7, 74.7)) * 43758.5453);
+}
+
+fn random_vec3(seed: vec2<f32>) -> vec3<f32> {
+    let r = fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453);
+    let g = fract(sin(seed.x * 45.3467 + seed.y * 98.233) * 43758.5453);
+    let b = fract(sin(seed.x * 78.5643 + seed.y * 56.789) * 43758.5453);
+
+    // Return the randomized vec3
+    return vec3<f32>(r, g, b);
+}
+
+fn get_reflection(reflect_dir: vec3<f32>, screen_pos: vec2<f32>, roughness: f32) -> vec3<f32> {
+    var base = textureSample(t_env, s_env, reflect_dir).rgb;
+
+    // TODO: Modify this!
+    let jitter = random_vec3(screen_pos) * roughness * 0.5;
+    let p_a = normalize(reflect_dir + jitter);
+    let p_b = normalize(reflect_dir - jitter);
+
+    let c_a = textureSample(t_env, s_env, p_a).rgb;
+    let c_b = textureSample(t_env, s_env, p_b).rgb;
+
+    return (base + c_a + c_b) / 3.0;
+}
+
+
+fn calculate_lighting(screen_pos: vec2<f32>, albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
     let metallic = lighting.r;
     let roughness = lighting.g;
     let emissive = lighting.b;
@@ -447,9 +480,10 @@ fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>,
     let n_normal = normalize(normal);
 
     let view_dir = normalize(-view_pos);
+
     var reflect_dir = normalize(reflect(view_dir, n_normal));
     reflect_dir.y = -reflect_dir.y;
-    let reflect_color = textureSample(t_env, s_env, reflect_dir).rgb;
+    let reflect_color = get_reflection(reflect_dir, screen_pos, roughness);
 
     for (var i = 0; i < MAX_LIGHTS; i++) {
         let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i]);
@@ -457,7 +491,7 @@ fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>,
         output_color += l;
     }
 
-    output_color *= mix(vec3<f32>(1.0), reflect_color, metallic);
+    output_color *= reflect_color * mix(0.04, 1.0, metallic);
 
     return output_color;
 }
