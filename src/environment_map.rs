@@ -5,6 +5,24 @@ pub const ENVIRONMENT_MAP_BIND_GROUP: u32 = 3;
 pub struct EnvironmentMap {
     pub bind_group: wgpu::BindGroup,
     pub bind_group_layout: wgpu::BindGroupLayout,
+    pub uniforms_buffer: wgpu::Buffer,
+    pub uniforms: EnvironmentUniforms,
+}
+
+pub struct EnvironmentUniforms {
+    pub environment_strength: f32,
+}
+
+impl EnvironmentUniforms {
+    pub fn new() -> Self {
+        Self {
+            environment_strength: 1.0,
+        }
+    }
+
+    pub fn get_uniforms(&self) -> [f32; 1] {
+        [self.environment_strength]
+    }
 }
 
 // Right
@@ -59,6 +77,13 @@ impl EnvironmentMap {
             ..Default::default()
         });
 
+        let uniforms_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Environment Map Uniforms Buffer"),
+            size: size_of::<EnvironmentUniforms>() as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        });
+
         let bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc());
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -72,9 +97,15 @@ impl EnvironmentMap {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&sampler),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: uniforms_buffer.as_entire_binding(),
+                },
             ],
             label: Some("Environment Map Bind Group"),
         });
+
+        let uniforms = EnvironmentUniforms::new();
 
         for (index, path) in IMAGES.iter().enumerate() {
             let image = ImageReader::open(path).unwrap().decode().unwrap();
@@ -105,13 +136,13 @@ impl EnvironmentMap {
                 },
                 size,
             );
-
-            println!("wrote 1 texture");
         }
 
         Self {
             bind_group,
             bind_group_layout,
+            uniforms_buffer,
+            uniforms,
         }
     }
 }
@@ -133,6 +164,16 @@ pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescripto
                 binding: 1,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
                 count: None,
             },
         ],

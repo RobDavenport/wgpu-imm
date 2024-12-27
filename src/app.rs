@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use glam::{Mat4, Vec3A};
 use winit::application::ApplicationHandler;
@@ -17,20 +18,24 @@ use crate::wgpu_setup;
 pub struct StateApplication {
     state: Option<State>,
     game: Game,
+    last_frame: Instant,
+    frame_time: Duration,
 }
 
 impl StateApplication {
-    pub fn new() -> Self {
+    pub fn new(fps: f32) -> Self {
         Self {
             state: None,
             game: Game::new(),
+            last_frame: Instant::now(),
+            frame_time: Duration::from_secs_f32(1.0 / fps),
         }
     }
 }
 
 impl ApplicationHandler for StateApplication {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let resolution = Resolution::Low;
+        let resolution = Resolution::Full;
         let (width, height) = resolution.dimensions();
 
         let inner_size = PhysicalSize { width, height };
@@ -49,6 +54,7 @@ impl ApplicationHandler for StateApplication {
         self.game.init(&mut state.virtual_gpu);
 
         self.state = Some(state);
+        self.last_frame = Instant::now();
     }
 
     fn window_event(
@@ -68,11 +74,17 @@ impl ApplicationHandler for StateApplication {
                     self.state.as_mut().unwrap().resize(physical_size);
                 }
                 WindowEvent::RedrawRequested => {
-                    self.state.as_mut().unwrap().update();
-                    self.game.update();
-                    self.game
-                        .draw(&mut self.state.as_mut().unwrap().virtual_gpu);
-                    self.state.as_mut().unwrap().render().unwrap();
+                    let now = Instant::now();
+
+                    let diff = now.duration_since(self.last_frame);
+                    if diff >= self.frame_time {
+                        self.last_frame = now;
+                        self.state.as_mut().unwrap().update();
+                        self.game.update();
+                        self.game
+                            .draw(&mut self.state.as_mut().unwrap().virtual_gpu);
+                        self.state.as_mut().unwrap().render().unwrap();
+                    }
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let state = &mut self.state.as_mut().unwrap();
@@ -83,8 +95,24 @@ impl ApplicationHandler for StateApplication {
                             PhysicalKey::Code(KeyCode::KeyS) => state.camera_delta.z -= 1.0,
                             PhysicalKey::Code(KeyCode::KeyQ) => state.camera_delta.x += 1.0,
                             PhysicalKey::Code(KeyCode::KeyE) => state.camera_delta.x -= 1.0,
+                            PhysicalKey::Code(KeyCode::KeyR) => state.camera_delta.y += 1.0,
+                            PhysicalKey::Code(KeyCode::KeyF) => state.camera_delta.y -= 1.0,
                             PhysicalKey::Code(KeyCode::KeyA) => state.camera_yaw_delta = 1.0,
                             PhysicalKey::Code(KeyCode::KeyD) => state.camera_yaw_delta = -1.0,
+                            PhysicalKey::Code(KeyCode::KeyO) => {
+                                state
+                                    .virtual_gpu
+                                    .environment_map
+                                    .uniforms
+                                    .environment_strength += 0.1
+                            }
+                            PhysicalKey::Code(KeyCode::KeyL) => {
+                                state
+                                    .virtual_gpu
+                                    .environment_map
+                                    .uniforms
+                                    .environment_strength -= 0.1
+                            }
                             _ => {}
                         },
                         false => {
@@ -93,6 +121,8 @@ impl ApplicationHandler for StateApplication {
                                 | PhysicalKey::Code(KeyCode::KeyS) => state.camera_delta.z = 0.0,
                                 PhysicalKey::Code(KeyCode::KeyQ)
                                 | PhysicalKey::Code(KeyCode::KeyE) => state.camera_delta.x = 0.0,
+                                PhysicalKey::Code(KeyCode::KeyR)
+                                | PhysicalKey::Code(KeyCode::KeyF) => state.camera_delta.y = 0.0,
                                 PhysicalKey::Code(KeyCode::KeyA)
                                 | PhysicalKey::Code(KeyCode::KeyD) => state.camera_yaw_delta = 0.0,
                                 _ => {}
@@ -183,9 +213,11 @@ impl State {
 
         let forward = self.virtual_gpu.camera.get_forward();
         let right = forward.cross(Vec3A::Y);
+        let up = Vec3A::Y;
 
         self.virtual_gpu.camera.eye += forward * self.camera_delta.z * DT * CAMERA_SPEED;
         self.virtual_gpu.camera.eye -= right * self.camera_delta.x * DT * CAMERA_SPEED;
+        self.virtual_gpu.camera.eye += up * self.camera_delta.y * DT * CAMERA_SPEED;
 
         self.virtual_gpu.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
 

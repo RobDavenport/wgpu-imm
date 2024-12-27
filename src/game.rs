@@ -7,7 +7,6 @@ use crate::{
     pipeline::Pipeline,
 };
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
-use gltf::mesh::util::indices;
 
 pub struct Game {
     t: f32,
@@ -59,26 +58,27 @@ impl Game {
         let data = importer::import_gltf("assets/Fox.glb").import(Pipeline::Uv);
         self.fox_static_raw = gpu.load_static_mesh(&data, Pipeline::Uv);
 
-        let (sphere, sphere_indices) = importer::import_gltf("assets/test sphere base.glb").import_indexed(Pipeline::ColorLit);
+        let (sphere, sphere_indices) =
+            importer::import_gltf("assets/test sphere base.glb").import_indexed(Pipeline::ColorLit);
         let mut spheres = Vec::new();
 
-        for metallic in 0..2 {
-           for roughness in 0..11 {
+        for metallic in 0..5 {
+            for roughness in 0..11 {
                 for index in sphere_indices.iter() {
                     let start = *index as usize * 12;
                     let end = start + 12;
                     let vertex = &sphere[start..end];
                     let x = vertex[0] + roughness as f32 * 2.0;
-                    let y = vertex[1] + metallic as f32 * 2.0;
+                    let y = vertex[1] + metallic as f32 * 2.0 - (3.0);
                     let z = vertex[2];
                     let to_copy = &vertex[3..9];
-                    let lighting = &[metallic as f32, roughness as f32 / 10.0, 0.0];
+                    let lighting = &[metallic as f32 / 4.0, roughness as f32 / 10.0, 0.0];
                     spheres.extend_from_slice(&[x, y, z]);
                     spheres.extend_from_slice(to_copy); // Color, Normals
                     spheres.extend_from_slice(lighting);
-               }
-           }
-        };
+                }
+            }
+        }
 
         self.pbr_test = gpu.load_static_mesh(&spheres, Pipeline::ColorLit);
     }
@@ -123,24 +123,24 @@ impl Game {
         // state.draw_static_mesh(self.fox_static_raw);
 
         // Ambient Light
-        state.push_light(&Light {
-            color_intensity: Vec4::new(1.0, 1.0, 1.0, PI),
-            position_range: Vec4::splat(-1.0),
-            direction_angle: Vec4::ZERO,
-        });
+        // state.push_light(&Light {
+        //     color_intensity: Vec4::new(1.0, 1.0, 1.0, 0.05),
+        //     position_range: Vec4::splat(-1.0),
+        //     direction_angle: Vec4::ZERO,
+        // });
 
         // Point Light
-        // for n in 0..6 {
-        //     let light_x = self.t.sin() * 2.0;
-        //     let light_y = self.t.cos() * 2.0 * n as f32;
-        //     let light_offset = Vec4::new(light_x, light_y, 1.0, 1.0);
-        //     let modified_position =
-        //         Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
-        //     state.push_light(&Light {
-        //         color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
-        //         position_range: modified_position.xyz().extend(1.0),
-        //         direction_angle: Vec4::ZERO,
-        //     });
-        // }
+        for n in 0..8 {
+            //let light_x = self.t.sin() * 2.0;
+            let light_y = self.t.cos() * 2.0 * n as f32;
+            let light_offset = Vec4::new((25.0 / 7.0) * n as f32, light_y, 1.0, 1.0);
+            let modified_position =
+                Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
+            state.push_light(&Light {
+                color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                position_range: modified_position.xyz().extend(1.0),
+                direction_angle: Vec4::ZERO,
+            });
+        }
     }
 }

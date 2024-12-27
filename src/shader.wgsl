@@ -24,11 +24,13 @@ var s_albedo: sampler;
 @group(2) @binding(0)
 var<uniform> lights: array<Light, MAX_LIGHTS>;
 
-// Environmap Bindings
+// Environent Map Bindings
 @group(3) @binding(0)
 var t_env: texture_cube<f32>;
 @group(3) @binding(1)
 var s_env: sampler;
+@group(3) @binding(2)
+var<uniform> env_strength: f32;
 
 struct Light {
     color_intensity: vec4<f32>,
@@ -209,12 +211,7 @@ fn vs_color_lit(
 fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     let frag_color = in.color;
 
-    // Convert to pixel coordinates
-    let pixel = in.clip_position.xy / vec2<f32>(480.0, 270.0); // xy in screen space
-    //let pixel = in.clip_position.xy / vec2<f32>(1920.0, 1080.0); // xy in screen space
-
-
-    let output_color = calculate_lighting(pixel, frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -263,7 +260,7 @@ fn vs_uv_lit(
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
     let frag_color = textureSample(t_albedo, s_albedo, in.uvs).rgb;
 
-    let output_color = calculate_lighting(in.clip_position.xy, frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -315,7 +312,7 @@ fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     let frag_color = in.color * texel.rgb;
 
-    let output_color = calculate_lighting(in.clip_position.xy, frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -345,7 +342,8 @@ fn calculate_light(
     roughness: f32,
     view_position: vec3<f32>,
     view_normal: vec3<f32>,
-    light: Light
+    light: Light,
+    env_color: vec3<f32>,
 ) -> vec3<f32> {
     var terms: vec4<f32>;
     var light_dir: vec3<f32>;
@@ -389,7 +387,7 @@ fn calculate_light(
     terms = vec4<f32>(n_dot_v, n_dot_l, n_dot_h, v_dot_h);
 
     let light_color = light.color_intensity.rgb * light.color_intensity.w;
-    return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
+    return tri_ace_directional(albedo, light_color, metallic, roughness, terms, env_color);
 }
 
 // Based off of the version below
@@ -419,6 +417,7 @@ fn tri_ace_directional(
     metallic: f32,
     roughness: f32,
     terms: vec4<f32>,
+    env_color: vec3<f32>,
 ) -> vec3<f32> {
     let n_dot_v = terms[0];
     let n_dot_l = terms[1];
@@ -438,60 +437,64 @@ fn tri_ace_directional(
     let f = f_unreal(f_0, v_dot_h);
     let top = f * f_0 * pow(n_dot_h, shininess);
     let bot = max(n_dot_l, n_dot_v);
-    let specular = normalize_shininess(shininess) * (top / bot) * light_color;
+    let specular = normalize_shininess(shininess) * (top / bot) * light_color * env_color;
 
     return (diffuse + specular) * n_dot_l;
 }
 
-fn hash3(p: vec3<f32>) -> vec3<f32> {
-    return fract(sin(p * vec3<f32>(127.1, 311.7, 74.7)) * 43758.5453);
-}
+// Generates a randomi vec3 from a seed
+fn random_vec3(seed: f32) -> vec3<f32> {
+    let r = fract(sin(seed * 12.9898) * 43758.5453) * 2.0 - 1.0;
+    let g = fract(sin(seed * 45.3467) * 43758.5453) * 2.0 - 1.0;
+    let b = fract(sin(seed * 78.5643) * 43758.5453) * 2.0 - 1.0;
 
-fn random_vec3(seed: vec2<f32>) -> vec3<f32> {
-    let r = fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453);
-    let g = fract(sin(seed.x * 45.3467 + seed.y * 98.233) * 43758.5453);
-    let b = fract(sin(seed.x * 78.5643 + seed.y * 56.789) * 43758.5453);
-
-    // Return the randomized vec3
     return vec3<f32>(r, g, b);
 }
 
-fn get_reflection(reflect_dir: vec3<f32>, screen_pos: vec2<f32>, roughness: f32) -> vec3<f32> {
-    var base = textureSample(t_env, s_env, reflect_dir).rgb;
+fn get_reflection(view_pos: vec3<f32>, normal: vec3<f32>, roughness: f32) -> vec3<f32> {
+    // Set up relevant values
+    let view_dir = normalize(-view_pos);
+    var reflect_dir = normalize(reflect(view_dir, normal));
+    reflect_dir.y = -reflect_dir.y;
+    let n_dot_v = max(dot(normal, view_dir), 0.0);
 
-    // TODO: Modify this!
-    let jitter = random_vec3(screen_pos) * roughness * 0.5;
+    // Calculate alpha as roughness2
+    let alpha = roughness * roughness;
+
+    // Add jitter based on alpha, more rough = higher distance
+    let jitter = random_vec3(n_dot_v) * alpha;
     let p_a = normalize(reflect_dir + jitter);
     let p_b = normalize(reflect_dir - jitter);
 
+    // Sample two jittered points
     let c_a = textureSample(t_env, s_env, p_a).rgb;
     let c_b = textureSample(t_env, s_env, p_b).rgb;
 
-    return (base + c_a + c_b) / 3.0;
+    return (c_a + c_b) * 0.5; // Average the sum
 }
 
-
-fn calculate_lighting(screen_pos: vec2<f32>, albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
+fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
+    // Extract lighting values
     let metallic = lighting.r;
     let roughness = lighting.g;
     let emissive = lighting.b;
 
     var output_color = albedo * emissive; // Emissive Factor
+
+    // Get the environment color
     let n_normal = normalize(normal);
+    let env_color = get_reflection(view_pos, n_normal, roughness);
+    let n_dot_v = dot(n_normal, normalize(-view_pos));
 
-    let view_dir = normalize(-view_pos);
+    // Apply environment color
+    output_color += tri_ace_ambient(albedo, env_color, metallic, n_dot_v) * env_strength;
 
-    var reflect_dir = normalize(reflect(view_dir, n_normal));
-    reflect_dir.y = -reflect_dir.y;
-    let reflect_color = get_reflection(reflect_dir, screen_pos, roughness);
-
+    // Apply all lights
     for (var i = 0; i < MAX_LIGHTS; i++) {
-        let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i]);
+        let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i], env_color);
 
         output_color += l;
     }
-
-    output_color *= reflect_color * mix(0.04, 1.0, metallic);
 
     return output_color;
 }

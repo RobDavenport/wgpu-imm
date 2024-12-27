@@ -155,6 +155,11 @@ impl VirtualGpu {
                 &self.environment_map.bind_group,
                 &[],
             );
+            self.queue.write_buffer(
+                &self.environment_map.uniforms_buffer,
+                0,
+                bytemuck::cast_slice(&self.environment_map.uniforms.get_uniforms()),
+            );
             render_pass.set_vertex_buffer(INSTANCE_BUFFER_INDEX, self.instance_buffer.slice(..));
 
             self.virtual_render_pass.execute(&mut render_pass, self);

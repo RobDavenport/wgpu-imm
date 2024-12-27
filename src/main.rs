@@ -1,4 +1,5 @@
 use pollster::block_on;
+use wgpu::rwh::HasRawDisplayHandle;
 use winit::event_loop::EventLoop;
 
 mod app;
@@ -35,6 +36,6 @@ fn main() {
 pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
 
-    let mut window_state = StateApplication::new();
+    let mut window_state = StateApplication::new(120.0);
     let _ = event_loop.run_app(&mut window_state);
 }
