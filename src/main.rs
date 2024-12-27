@@ -1,5 +1,4 @@
 use pollster::block_on;
-use wgpu::rwh::HasRawDisplayHandle;
 use winit::event_loop::EventLoop;
 
 mod app;

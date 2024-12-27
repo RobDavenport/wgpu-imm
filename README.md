@@ -11,7 +11,6 @@ TODO:
 - Improve Lighting
   - Add Attenuation/Range Falloff
   - Add spotlight
-  - Consider a special slot for ambient and directional light, to support 8 + 2 total lights
   - Adjust lighting to include a light mask
     - Could be tied to instance data
     - Prevents weird async issue of setting lights and drawing meshes out of order
@@ -22,12 +21,9 @@ TODO:
   - figure out API for this
   - could include Scissor rect if necessary
 
-
 Longer Term Ideas:
 - Single "immediate mode" geometry and texture buffer always mapped to specific addresses
-- Dynamic textures can store a pointer & length to texture data on CPU side
-
-
+- Dynamic textures can store a pointer & length to texture data on CPU side, which just gets copied each frame, similar to a "register"
 
 Implementation Notes:
 For 2d Quad Rendering...
