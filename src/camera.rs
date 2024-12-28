@@ -1,7 +1,7 @@
 use glam::{Mat4, Vec3A};
 use wgpu::SurfaceConfiguration;
 
-pub type CameraUniformType = [f32; 48];
+pub type CameraUniformType = [f32; 52];
 
 pub struct Camera {
     pub eye: Vec3A,
@@ -79,7 +79,7 @@ impl Camera {
     }
 
     pub fn get_camera_uniforms(&self) -> CameraUniformType {
-        let mut out = [0.0; 48];
+        let mut out = [0.0; 52];
 
         let view = self.get_view();
         let projection = self.get_projection_3d();
@@ -88,6 +88,7 @@ impl Camera {
         view.write_cols_to_slice(&mut out[0..16]);
         projection.write_cols_to_slice(&mut out[16..32]);
         ortho.write_cols_to_slice(&mut out[32..48]);
+        self.eye.write_to_slice(&mut out[48..52]);
         out
     }
 

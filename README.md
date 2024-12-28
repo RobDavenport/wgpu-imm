@@ -3,7 +3,6 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Fix reflection for rotation around objects (view vs world space?)
 
 TODO:
 - Procedural Environment Maps

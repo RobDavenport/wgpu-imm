@@ -12,6 +12,7 @@ struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     ortho: mat4x4<f32>,
+    pos: vec4<f32>,
 }
 
 // Texture Bindings
@@ -39,10 +40,10 @@ struct Light {
 }
 
 struct InstanceInput {
-    @location(5) model_matrix_0: vec4<f32>,
-    @location(6) model_matrix_1: vec4<f32>,
-    @location(7) model_matrix_2: vec4<f32>,
-    @location(8) model_matrix_3: vec4<f32>,
+    @location(6) model_matrix_0: vec4<f32>,
+    @location(7) model_matrix_1: vec4<f32>,
+    @location(8) model_matrix_2: vec4<f32>,
+    @location(9) model_matrix_3: vec4<f32>,
 }
 
 // Vertex Inputs
@@ -61,7 +62,8 @@ struct InstanceInput {
 //     @location(2) uvs: vec2<f32>,
 //     @location(3) normals: vec3<f32>,
 //     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
-//     @location(9) view_pos: vec3<f32>,
+//     @location(0) view_pos: vec3<f32>,
+//     @location(5) world_reflection: vec3<f32>,
 // };
 
 // Vertex Color
@@ -181,6 +183,7 @@ struct VertexColorLitOut {
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
     @location(0) view_pos: vec3<f32>,
+    @location(5) world_reflection: vec3<f32>,
 };
 
 @vertex
@@ -204,6 +207,11 @@ fn vs_color_lit(
     out.view_pos = view_position.xyz;
     out.lighting = model.lighting;
 
+    let world_position = model_matrix * vec4<f32>(model.position, 1.0);
+    let world_normal = normalize(model_matrix * vec4<f32>(model.normals, 0.0));
+    let incoming = normalize(camera.pos - world_position);
+    out.world_reflection = reflect(incoming, world_normal).xyz;
+
     return out;
 }
 
@@ -211,7 +219,13 @@ fn vs_color_lit(
 fn fs_color_lit(in: VertexColorLitOut) -> @location(0) vec4<f32> {
     let frag_color = in.color;
 
-    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(
+        frag_color,
+        in.view_pos,
+        in.normals,
+        in.world_reflection,
+        in.lighting
+    );
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -229,6 +243,7 @@ struct VertexUvLitOut {
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
     @location(0) view_pos: vec3<f32>,
+    @location(5) world_reflection: vec3<f32>,
 };
 
 @vertex
@@ -236,7 +251,6 @@ fn vs_uv_lit(
     model: VertexUvLitIn,
     instance: InstanceInput,
 ) -> VertexUvLitOut {
-    // TODO: Write This Shader!
     var out: VertexUvLitOut;
     let model_matrix = mat4x4<f32>(
         instance.model_matrix_0,
@@ -253,6 +267,11 @@ fn vs_uv_lit(
     out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
     out.lighting = model.lighting;
 
+    let world_position = model_matrix * vec4<f32>(model.position, 1.0);
+    let world_normal = normalize(model_matrix * vec4<f32>(model.normals, 0.0));
+    let incoming = normalize(camera.pos - world_position);
+    out.world_reflection = reflect(incoming, world_normal).xyz;
+
     return out;
 }
 
@@ -260,7 +279,13 @@ fn vs_uv_lit(
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
     let frag_color = textureSample(t_albedo, s_albedo, in.uvs).rgb;
 
-    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(
+        frag_color,
+        in.view_pos,
+        in.normals,
+        in.world_reflection,
+        in.lighting
+    );
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -280,6 +305,7 @@ struct VertexColorUvLitOut {
     @location(3) normals: vec3<f32>,
     @location(4) lighting: vec3<f32>, // Metallic, Roughness, Emissive
     @location(0) view_pos: vec3<f32>,
+    @location(5) world_reflection: vec3<f32>,
 };
 
 @vertex
@@ -304,6 +330,11 @@ fn vs_color_uv_lit(
     out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
     out.lighting = model.lighting;
 
+    let world_position = model_matrix * vec4<f32>(model.position, 1.0);
+    let world_normal = normalize(model_matrix * vec4<f32>(model.normals, 0.0));
+    let incoming = normalize(camera.pos - world_position);
+    out.world_reflection = reflect(incoming, world_normal).xyz;
+
     return out;
 }
 
@@ -312,7 +343,13 @@ fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     let frag_color = in.color * texel.rgb;
 
-    let output_color = calculate_lighting(frag_color, in.view_pos, in.normals, in.lighting);
+    let output_color = calculate_lighting(
+        frag_color,
+        in.view_pos,
+        in.normals,
+        in.world_reflection,
+        in.lighting
+    );
     return vec4<f32>(output_color, 1.0);
 }
 
@@ -442,27 +479,17 @@ fn tri_ace_directional(
     return (diffuse + specular) * n_dot_l;
 }
 
-// Generates a randomi vec3 from a seed
-fn random_vec3(seed: f32) -> vec3<f32> {
-    let r = fract(sin(seed * 12.9898) * 43758.5453) * 2.0 - 1.0;
-    let g = fract(sin(seed * 45.3467) * 43758.5453) * 2.0 - 1.0;
-    let b = fract(sin(seed * 78.5643) * 43758.5453) * 2.0 - 1.0;
-
-    return vec3<f32>(r, g, b);
+// Generates a random vec3 from a seed
+fn random_vec3(seed: vec3<f32>) -> vec3<f32> {
+    return fract(sin(seed * vec3<f32>(12.9898, 45.3467, 78.5643)) * 43758.5453) * 2.0 - 1.0;
 }
 
-fn get_reflection(view_pos: vec3<f32>, normal: vec3<f32>, roughness: f32) -> vec3<f32> {
-    // Set up relevant values
-    let view_dir = normalize(-view_pos);
-    var reflect_dir = normalize(reflect(view_dir, normal));
-    reflect_dir.y = -reflect_dir.y;
-    let n_dot_v = max(dot(normal, view_dir), 0.0);
-
+fn get_reflection(reflect_dir: vec3<f32>, roughness: f32) -> vec3<f32> {
     // Calculate alpha as roughness2
     let alpha = roughness * roughness;
 
     // Add jitter based on alpha, more rough = higher distance
-    let jitter = random_vec3(n_dot_v) * alpha;
+    let jitter = random_vec3(reflect_dir) * alpha;
     let p_a = normalize(reflect_dir + jitter);
     let p_b = normalize(reflect_dir - jitter);
 
@@ -473,7 +500,13 @@ fn get_reflection(view_pos: vec3<f32>, normal: vec3<f32>, roughness: f32) -> vec
     return (c_a + c_b) * 0.5; // Average the sum
 }
 
-fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>, lighting: vec3<f32>) -> vec3<f32> {
+fn calculate_lighting(
+    albedo: vec3<f32>,
+    view_pos: vec3<f32>,
+    normal: vec3<f32>,
+    world_reflection: vec3<f32>,
+    lighting: vec3<f32>,
+) -> vec3<f32> {
     // Extract lighting values
     let metallic = lighting.r;
     let roughness = lighting.g;
@@ -483,8 +516,12 @@ fn calculate_lighting(albedo: vec3<f32>, view_pos: vec3<f32>, normal: vec3<f32>,
 
     // Get the environment color
     let n_normal = normalize(normal);
-    let env_color = get_reflection(view_pos, n_normal, roughness);
+    var reflection = normalize(world_reflection);
+    reflection.y = -reflection.y;
+    let env_color = get_reflection(reflection, roughness);
+
     let n_dot_v = dot(n_normal, normalize(-view_pos));
+
 
     // Apply environment color
     output_color += tri_ace_ambient(albedo, env_color, metallic, n_dot_v) * env_strength;
