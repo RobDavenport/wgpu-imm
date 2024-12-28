@@ -485,8 +485,8 @@ fn random_vec3(seed: vec3<f32>) -> vec3<f32> {
 }
 
 fn get_reflection(reflect_dir: vec3<f32>, roughness: f32) -> vec3<f32> {
-    // Calculate alpha as roughness2
-    let alpha = roughness * roughness;
+    // Calculate alpha as roughness2 / PI
+    let alpha = roughness * roughness * INV_PI;
 
     // Add jitter based on alpha, more rough = higher distance
     let jitter = random_vec3(reflect_dir) * alpha;
