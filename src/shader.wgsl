@@ -380,7 +380,6 @@ fn calculate_light(
     view_position: vec3<f32>,
     view_normal: vec3<f32>,
     light: Light,
-    env_color: vec3<f32>,
 ) -> vec3<f32> {
     var terms: vec4<f32>;
     var light_dir: vec3<f32>;
@@ -424,7 +423,7 @@ fn calculate_light(
     terms = vec4<f32>(n_dot_v, n_dot_l, n_dot_h, v_dot_h);
 
     let light_color = light.color_intensity.rgb * light.color_intensity.w;
-    return tri_ace_directional(albedo, light_color, metallic, roughness, terms, env_color);
+    return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
 }
 
 // Based off of the version below
@@ -454,7 +453,6 @@ fn tri_ace_directional(
     metallic: f32,
     roughness: f32,
     terms: vec4<f32>,
-    env_color: vec3<f32>,
 ) -> vec3<f32> {
     let n_dot_v = terms[0];
     let n_dot_l = terms[1];
@@ -474,7 +472,7 @@ fn tri_ace_directional(
     let f = f_unreal(f_0, v_dot_h);
     let top = f * f_0 * pow(n_dot_h, shininess);
     let bot = max(n_dot_l, n_dot_v);
-    let specular = normalize_shininess(shininess) * (top / bot) * light_color * env_color;
+    let specular = normalize_shininess(shininess) * (top / bot) * light_color;
 
     return (diffuse + specular) * n_dot_l;
 }
@@ -528,7 +526,7 @@ fn calculate_lighting(
 
     // Apply all lights
     for (var i = 0; i < MAX_LIGHTS; i++) {
-        let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i], env_color);
+        let l = calculate_light(albedo, metallic, roughness, view_pos, n_normal, lights[i]);
 
         output_color += l;
     }
