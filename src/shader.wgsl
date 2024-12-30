@@ -498,6 +498,11 @@ fn get_reflection(reflect_dir: vec3<f32>, roughness: f32) -> vec3<f32> {
     return (c_a + c_b) * 0.5; // Average the sum
 }
 
+// fn calculate_attenuation(light_pos: vec3<f32>, fragment_pos: vec3<f32>, light_range: f32) -> f32 {
+//     //TODO: Write this!
+//     return max(0.0, pow(1.0 - distance, 2.0))
+// }
+
 fn calculate_lighting(
     albedo: vec3<f32>,
     view_pos: vec3<f32>,
