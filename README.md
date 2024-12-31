@@ -3,7 +3,7 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Add spotlights
+- Fix non metallic being lit by ambient light
 
 TODO:
 - Procedural Environment Maps

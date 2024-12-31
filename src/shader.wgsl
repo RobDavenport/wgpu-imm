@@ -405,17 +405,15 @@ fn calculate_light(
     } else {
         // Positional Light (Point or Spot)
         light_dir = normalize(light.position_range.xyz - view_position);
+        attenuation = calculate_attenuation(light.position_range, view_position);
 
         if light.position_range.w > 0.0 {
             // Spot light
-
-            attenuation = calculate_attenuation(light.position_range, view_position);
-
-            let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
-            if spot_factor < cos(light.direction_angle.w) {
-                // Don't include this light in the calculation
+            let spot_factor = dot(light_dir, normalize(light.direction_angle.xyz));
+            if spot_factor < light.direction_angle.w {
+                // Fragment Outside, just do nothing
                 return vec3<f32>(0.0);
-            }
+            } 
         }
     }
 
@@ -530,7 +528,6 @@ fn calculate_lighting(
     let env_color = get_reflection(reflection, roughness);
 
     let n_dot_v = dot(n_normal, normalize(-view_pos));
-
 
     // Apply environment color
     output_color += tri_ace_ambient(albedo, env_color, metallic, n_dot_v) * env_strength;

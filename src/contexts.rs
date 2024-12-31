@@ -1,6 +1,6 @@
 use glam::Mat4;
 
-use crate::{lights::Light, pipeline::Pipeline};
+use crate::{camera::Camera, lights::Light, pipeline::Pipeline};
 
 pub trait Init3dContext {
     fn load_texture(&mut self, path: &str) -> usize;
@@ -16,6 +16,8 @@ pub trait Init3dContext {
 }
 
 pub trait Draw3dContext {
+    fn get_camera(&self) -> &Camera;
+
     fn draw_tri_list(&mut self, data: &[f32], pipeline: Pipeline);
     fn push_light(&mut self, light: &Light);
     fn push_matrix(&mut self, matrix: Mat4);

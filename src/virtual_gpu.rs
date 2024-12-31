@@ -1,5 +1,5 @@
 use bytemuck::cast_slice;
-use glam::{Mat4, Vec4Swizzles};
+use glam::{Mat4, Vec3, Vec4Swizzles};
 use wgpu::{RenderPipeline, TextureView};
 
 use crate::{
@@ -313,6 +313,10 @@ impl contexts::Init3dContext for VirtualGpu {
 }
 
 impl contexts::Draw3dContext for VirtualGpu {
+    fn get_camera(&self) -> &Camera {
+        &self.camera
+    }
+
     fn draw_tri_list(&mut self, data: &[f32], pipeline: Pipeline) {
         let attribute_count = pipeline.get_attribute_count();
         let total_attributes = data.len();

@@ -6,7 +6,7 @@ use crate::{
     lights::Light,
     pipeline::Pipeline,
 };
-use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
+use glam::{Mat4, Vec3, Vec3A, Vec4, Vec4Swizzles};
 
 pub struct Game {
     t: f32,
@@ -130,20 +130,29 @@ impl Game {
         // });
 
         // Point Light
-        for n in 0..8 {
-            //let light_x = self.t.sin() * 2.0;
-            let light_y = self.t.cos() * 2.0 * n as f32;
-            let light_z = 1.0;
-            let light_offset = Vec4::new((25.0 / 7.0) * n as f32, light_y, light_z, 1.0);
-            let modified_position =
-                Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
-            state.push_light(&Light {
-                color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
-                position_range: modified_position
-                    .xyz()
-                    .extend((self.t.sin() * 0.5 + 0.5) * 50.0),
-                direction_angle: Vec4::ZERO,
-            });
-        }
+        // for n in 0..8 {
+        //     //let light_x = self.t.sin() * 2.0;
+        //     let light_y = self.t.cos() * 2.0 * n as f32;
+        //     let light_z = 1.0;
+        //     let light_offset = Vec4::new((25.0 / 7.0) * n as f32, light_y, light_z, 1.0);
+        //     let modified_position =
+        //         Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
+        //     state.push_light(&Light {
+        //         color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
+        //         position_range: modified_position
+        //             .xyz()
+        //             .extend((self.t.sin() * 0.5 + 0.5) * 50.0),
+        //         direction_angle: Vec4::ZERO,
+        //     });
+        // }
+
+        let camera = state.get_camera();
+        let forward = -camera.get_forward();
+
+        state.push_light(&Light {
+            color_intensity: Vec4::splat(1.0),
+            position_range: camera.eye.extend(100.0),
+            direction_angle: forward.extend(0.95),
+        });
     }
 }
