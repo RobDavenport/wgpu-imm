@@ -3,15 +3,13 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Add Attenuation/Range Falloff
+- Add spotlights
 
 TODO:
 - Procedural Environment Maps
 - Clean up App/State/VGpu More...
   - Move Surface out of App into VGPU
 - Improve Lighting
-
-  - Add spotlight
   - Adjust lighting to include a light mask
     - Could be tied to instance data
     - Prevents weird async issue of setting lights and drawing meshes out of order

@@ -3,6 +3,7 @@ const MAX_LIGHTS = 8;
 const PI = radians(180.0);
 const INV_PI = 1.0 / PI;
 const MAX_SHININESS = 2048.0;
+const LIGHT_FALLOFF = 2.0;
 
 // Uniforms
 @group(0) @binding(0)
@@ -388,6 +389,8 @@ fn calculate_light(
     let view_dir = normalize(-view_position);
     let n_dot_v = max(dot(view_normal, view_dir), 0.0);
 
+    var attenuation = 1.0;
+
     // // Identify light type
     if light.position_range.w < 0.0 {
         // Global Light (Ambient or Directional)
@@ -405,7 +408,9 @@ fn calculate_light(
 
         if light.position_range.w > 0.0 {
             // Spot light
-            // TODO: Handle This...
+
+            attenuation = calculate_attenuation(light.position_range, view_position);
+
             let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
             if spot_factor < cos(light.direction_angle.w) {
                 // Don't include this light in the calculation
@@ -422,7 +427,7 @@ fn calculate_light(
 
     terms = vec4<f32>(n_dot_v, n_dot_l, n_dot_h, v_dot_h);
 
-    let light_color = light.color_intensity.rgb * light.color_intensity.w;
+    let light_color = light.color_intensity.rgb * light.color_intensity.w * attenuation;
     return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
 }
 
@@ -498,10 +503,11 @@ fn get_reflection(reflect_dir: vec3<f32>, roughness: f32) -> vec3<f32> {
     return (c_a + c_b) * 0.5; // Average the sum
 }
 
-// fn calculate_attenuation(light_pos: vec3<f32>, fragment_pos: vec3<f32>, light_range: f32) -> f32 {
-//     //TODO: Write this!
-//     return max(0.0, pow(1.0 - distance, 2.0))
-// }
+fn calculate_attenuation(light_position_range: vec4<f32>, fragment_pos: vec3<f32>) -> f32 {
+    let distance = length(light_position_range.xyz - fragment_pos) / light_position_range.w;
+    let clamped = clamp(distance, 0.0, 1.0);
+    return pow(1.0 - clamped, LIGHT_FALLOFF);
+}
 
 fn calculate_lighting(
     albedo: vec3<f32>,
