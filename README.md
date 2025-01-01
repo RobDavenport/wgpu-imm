@@ -9,7 +9,6 @@ TODO:
 - Clean up App/State/VGpu More...
   - Move Surface out of App into VGPU
 - Improve Lighting
-  - Add spotlight smoothstep
   - Adjust lighting to include a light mask
     - Could be tied to instance data
     - Prevents weird async issue of setting lights and drawing meshes out of order

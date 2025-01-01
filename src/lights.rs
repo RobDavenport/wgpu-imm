@@ -7,9 +7,9 @@ pub const MAX_LIGHTS: u64 = 4;
 #[derive(Pod, Zeroable, Clone, Copy)]
 #[repr(C)]
 pub struct Light {
-    pub color_intensity: Vec4,
+    pub color_max_angle: Vec4,
     pub position_range: Vec4,
-    pub direction_angle: Vec4,
+    pub direction_min_angle: Vec4,
 }
 
 impl Light {

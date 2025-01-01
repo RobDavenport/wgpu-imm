@@ -131,7 +131,7 @@ impl Game {
 
         // Point Lights
         for n in 0..2 {
-            let color_intensity = if n == 0 {
+            let color_max_angle = if n == 0 {
                 Vec4::new(1.0, 0.0, 0.0, 1.0)
             } else {
                 Vec4::new(0.0, 1.0, 0.0, 1.0)
@@ -143,11 +143,11 @@ impl Game {
             let modified_position =
                 Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
             state.push_light(&Light {
-                color_intensity,
+                color_max_angle,
                 position_range: modified_position
                     .xyz()
                     .extend((self.t.sin() * 0.5 + 0.5) * 50.0),
-                direction_angle: Vec4::ZERO,
+                direction_min_angle: Vec4::ZERO,
             });
         }
 
@@ -156,16 +156,16 @@ impl Game {
 
         // Spot Light
         state.push_light(&Light {
-            color_intensity: Vec4::splat(1.0),
-            position_range: camera_pos.extend(10.0),
-            direction_angle: forward.extend(0.95),
+            color_max_angle: Vec4::new(1.0, 1.0, 1.0, 15.0_f32.to_radians().cos()),
+            position_range: camera_pos.extend(15.0),
+            direction_min_angle: forward.extend(12.5_f32.to_radians().cos()),
         });
 
         // Directional Light, Pointing Left, Down, Forward
         state.push_light(&Light {
-            color_intensity: Vec4::splat(1.0),
+            color_max_angle: Vec4::splat(1.0),
             position_range: Vec4::ZERO,
-            direction_angle: Vec4::new(-1.0, -1.0, -1.0, 0.0),
+            direction_min_angle: Vec4::new(-1.0, -1.0, -1.0, 0.0),
         });
     }
 }

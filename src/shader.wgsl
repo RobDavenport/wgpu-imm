@@ -35,9 +35,9 @@ var s_env: sampler;
 var<uniform> env_color_strength: vec4<f32>;
 
 struct Light {
-    color_intensity: vec4<f32>,
+    color_max_angle: vec4<f32>,
     position_range: vec4<f32>,
-    direction_angle: vec4<f32>,
+    direction_min_angle: vec4<f32>,
 }
 
 struct InstanceInput {
@@ -396,28 +396,35 @@ fn calculate_light(
         // Global Light (Ambient or Directional)
 
         // No Direction, Ambient Light
-        if all(light.direction_angle.xyz == vec3<f32>(0.0)) {
-            let light_color = light.color_intensity.rgb * light.color_intensity.w;
+        if all(light.direction_min_angle.xyz == vec3<f32>(0.0)) {
+            let light_color = light.color_max_angle.rgb;
             return tri_ace_ambient(albedo, light_color, metallic, n_dot_v);
         } else {
             // Directional Light
-            light_dir = normalize(-light.direction_angle.xyz);
+            light_dir = normalize(-light.direction_min_angle.xyz);
         }
     } else {
         // Positional Light (Point or Spot)
         light_dir = normalize(light.position_range.xyz - view_position);
+        attenuation = calculate_attenuation(light.position_range, view_position);
 
         // Early out for spotlights
-        if light.direction_angle.w > 0.0 {
+        if light.direction_min_angle.w > 0.0 {
             // Spot light
-            let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
-            if spot_factor < light.direction_angle.w {
-                // Fragment Outside, just do nothing
+            let spot_factor = dot(light_dir, normalize(-light.direction_min_angle.xyz));
+            // Check if within the spotlight cone
+            if spot_factor < light.color_max_angle.w {
+                // Fragment outside the cone, no light contribution
                 return vec3<f32>(0.0);
+            } else {
+                // Exponential falloff based on the spot factor
+                let angle_range = light.direction_min_angle.w - light.color_max_angle.w;
+                let normalized_spot_factor = (spot_factor - light.color_max_angle.w) / angle_range;
+                // Adjust exponent for sharper/softer falloff
+                let falloff = pow(normalized_spot_factor, LIGHT_FALLOFF);
+                attenuation *= falloff;
             }
         }
-
-        attenuation = calculate_attenuation(light.position_range, view_position);
     }
 
     // Half vector calculation
@@ -428,7 +435,7 @@ fn calculate_light(
 
     terms = vec4<f32>(n_dot_v, n_dot_l, n_dot_h, v_dot_h);
 
-    let light_color = light.color_intensity.rgb * light.color_intensity.w * attenuation;
+    let light_color = light.color_max_angle.rgb * attenuation;
     return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
 }
 

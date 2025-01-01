@@ -346,10 +346,10 @@ impl contexts::Draw3dContext for VirtualGpu {
         let offset = self.virtual_render_pass.light_count * size_of::<Light>() as u64;
         let mut light = *light;
         let view_position = self.camera.get_view() * light.position_range.xyz().extend(1.0);
-        let view_direction = self.camera.get_view() * light.direction_angle.xyz().extend(0.0);
+        let view_direction = self.camera.get_view() * light.direction_min_angle.xyz().extend(0.0);
 
         light.position_range = view_position.xyz().extend(light.position_range.w);
-        light.direction_angle = view_direction.xyz().extend(light.direction_angle.w);
+        light.direction_min_angle = view_direction.xyz().extend(light.direction_min_angle.w);
 
         self.queue.write_buffer(
             &self.lights.buffer,
