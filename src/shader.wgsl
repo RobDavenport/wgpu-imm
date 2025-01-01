@@ -1,5 +1,5 @@
 // Consts
-const MAX_LIGHTS = 8;
+const MAX_LIGHTS = 4;
 const PI = radians(180.0);
 const INV_PI = 1.0 / PI;
 const MAX_SHININESS = 2048.0;
@@ -32,7 +32,7 @@ var t_env: texture_cube<f32>;
 @group(3) @binding(1)
 var s_env: sampler;
 @group(3) @binding(2)
-var<uniform> env_strength: f32;
+var<uniform> env_color_strength: vec4<f32>;
 
 struct Light {
     color_intensity: vec4<f32>,
@@ -391,10 +391,11 @@ fn calculate_light(
 
     var attenuation = 1.0;
 
-    // // Identify light type
-    if light.position_range.w < 0.0 {
+    // Identify light type
+    if light.position_range.w <= 0.0 {
         // Global Light (Ambient or Directional)
 
+        // No Direction, Ambient Light
         if all(light.direction_angle.xyz == vec3<f32>(0.0)) {
             let light_color = light.color_intensity.rgb * light.color_intensity.w;
             return tri_ace_ambient(albedo, light_color, metallic, n_dot_v);
@@ -405,16 +406,18 @@ fn calculate_light(
     } else {
         // Positional Light (Point or Spot)
         light_dir = normalize(light.position_range.xyz - view_position);
-        attenuation = calculate_attenuation(light.position_range, view_position);
 
-        if light.position_range.w > 0.0 {
+        // Early out for spotlights
+        if light.direction_angle.w > 0.0 {
             // Spot light
-            let spot_factor = dot(light_dir, normalize(light.direction_angle.xyz));
+            let spot_factor = dot(light_dir, normalize(-light.direction_angle.xyz));
             if spot_factor < light.direction_angle.w {
                 // Fragment Outside, just do nothing
                 return vec3<f32>(0.0);
-            } 
+            }
         }
+
+        attenuation = calculate_attenuation(light.position_range, view_position);
     }
 
     // Half vector calculation
@@ -427,6 +430,27 @@ fn calculate_light(
 
     let light_color = light.color_intensity.rgb * light.color_intensity.w * attenuation;
     return tri_ace_directional(albedo, light_color, metallic, roughness, terms);
+}
+
+// Based off of the version below
+fn tri_ace_environment(
+    albedo: vec3<f32>,
+    reflection_color: vec3<f32>,
+    metallic: f32,
+    n_dot_v: f32,
+) -> vec3<f32> {
+    // Set Up Colors
+    let diffuse_color = (1.0 - metallic) * albedo; // Non-metallic materials will use diffuse color
+    let f_0 = mix(vec3(0.04), albedo, metallic); // This becomes the specular color
+    let env_color = env_color_strength.xyz;
+    let env_strength = env_color_strength.w;
+
+    // Specular Term
+    let f = f_unreal(f_0, n_dot_v);
+    let specular = (f * f_0) * reflection_color;
+    let diffuse = (diffuse_color * env_color * INV_PI) * (1.0 - f_0);
+
+    return (diffuse + specular) * env_strength;
 }
 
 // Based off of the version below
@@ -525,12 +549,12 @@ fn calculate_lighting(
     let n_normal = normalize(normal);
     var reflection = normalize(world_reflection);
     reflection.y = -reflection.y;
-    let env_color = get_reflection(reflection, roughness);
+    let reflection_color = get_reflection(reflection, roughness);
 
     let n_dot_v = dot(n_normal, normalize(-view_pos));
 
     // Apply environment color
-    output_color += tri_ace_ambient(albedo, env_color, metallic, n_dot_v) * env_strength;
+    output_color += tri_ace_environment(albedo, reflection_color, metallic, n_dot_v);
 
     // Apply all lights
     for (var i = 0; i < MAX_LIGHTS; i++) {

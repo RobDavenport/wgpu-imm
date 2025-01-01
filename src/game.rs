@@ -129,30 +129,43 @@ impl Game {
         //     direction_angle: Vec4::ZERO,
         // });
 
-        // Point Light
-        // for n in 0..8 {
-        //     //let light_x = self.t.sin() * 2.0;
-        //     let light_y = self.t.cos() * 2.0 * n as f32;
-        //     let light_z = 1.0;
-        //     let light_offset = Vec4::new((25.0 / 7.0) * n as f32, light_y, light_z, 1.0);
-        //     let modified_position =
-        //         Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
-        //     state.push_light(&Light {
-        //         color_intensity: Vec4::new(1.0, 1.0, 1.0, 1.0),
-        //         position_range: modified_position
-        //             .xyz()
-        //             .extend((self.t.sin() * 0.5 + 0.5) * 50.0),
-        //         direction_angle: Vec4::ZERO,
-        //     });
-        // }
+        // Point Lights
+        for n in 0..2 {
+            let color_intensity = if n == 0 {
+                Vec4::new(1.0, 0.0, 0.0, 1.0)
+            } else {
+                Vec4::new(0.0, 1.0, 0.0, 1.0)
+            };
+            //let light_x = self.t.sin() * 2.0;
+            let light_y = self.t.cos() * 2.0 * n as f32;
+            let light_z = 1.0;
+            let light_offset = Vec4::new((25.0 / 2.0) * n as f32, light_y, light_z, 1.0);
+            let modified_position =
+                Mat4::from_rotation_y(self.t + (n as f32 * 15.0)) * light_offset;
+            state.push_light(&Light {
+                color_intensity,
+                position_range: modified_position
+                    .xyz()
+                    .extend((self.t.sin() * 0.5 + 0.5) * 50.0),
+                direction_angle: Vec4::ZERO,
+            });
+        }
 
-        let camera = state.get_camera();
-        let forward = -camera.get_forward();
+        let camera_pos = state.get_camera().eye.clone();
+        let forward = state.get_camera().get_forward();
 
+        // Spot Light
         state.push_light(&Light {
             color_intensity: Vec4::splat(1.0),
-            position_range: camera.eye.extend(100.0),
+            position_range: camera_pos.extend(10.0),
             direction_angle: forward.extend(0.95),
+        });
+
+        // Directional Light, Pointing Left, Down, Forward
+        state.push_light(&Light {
+            color_intensity: Vec4::splat(1.0),
+            position_range: Vec4::ZERO,
+            direction_angle: Vec4::new(-1.0, -1.0, -1.0, 0.0),
         });
     }
 }

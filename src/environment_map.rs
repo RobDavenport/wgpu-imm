@@ -1,3 +1,4 @@
+use glam::Vec4;
 use image::ImageReader;
 
 pub const ENVIRONMENT_MAP_BIND_GROUP: u32 = 3;
@@ -10,18 +11,18 @@ pub struct EnvironmentMap {
 }
 
 pub struct EnvironmentUniforms {
-    pub environment_strength: f32,
+    pub environment_color_strength: Vec4,
 }
 
 impl EnvironmentUniforms {
     pub fn new() -> Self {
         Self {
-            environment_strength: 1.0,
+            environment_color_strength: Vec4::ONE,
         }
     }
 
-    pub fn get_uniforms(&self) -> [f32; 1] {
-        [self.environment_strength]
+    pub fn get_uniforms(&self) -> [f32; 4] {
+        self.environment_color_strength.into()
     }
 }
 

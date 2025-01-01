@@ -3,13 +3,13 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
-- Fix non metallic being lit by ambient light
 
 TODO:
 - Procedural Environment Maps
 - Clean up App/State/VGpu More...
   - Move Surface out of App into VGPU
 - Improve Lighting
+  - Add spotlight smoothstep
   - Adjust lighting to include a light mask
     - Could be tied to instance data
     - Prevents weird async issue of setting lights and drawing meshes out of order

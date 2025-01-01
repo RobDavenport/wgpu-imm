@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::Vec4;
 
 pub type LightUniformType = [f32; 12];
-pub const MAX_LIGHTS: u64 = 8;
+pub const MAX_LIGHTS: u64 = 4;
 
 #[derive(Pod, Zeroable, Clone, Copy)]
 #[repr(C)]

@@ -104,14 +104,16 @@ impl ApplicationHandler for StateApplication {
                                     .virtual_gpu
                                     .environment_map
                                     .uniforms
-                                    .environment_strength += 0.1
+                                    .environment_color_strength
+                                    .w += 0.1
                             }
                             PhysicalKey::Code(KeyCode::KeyL) => {
                                 state
                                     .virtual_gpu
                                     .environment_map
                                     .uniforms
-                                    .environment_strength -= 0.1
+                                    .environment_color_strength
+                                    .w -= 0.1
                             }
                             _ => {}
                         },
