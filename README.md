@@ -3,6 +3,7 @@
 Experimenting with some ideas for 3d fantasy consoles and immediate mode APIs...
 
 DOING:
+- Improve high CPU usage during event loop spin.
 
 TODO:
 - Procedural Environment Maps
