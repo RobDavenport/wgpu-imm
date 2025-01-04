@@ -34,6 +34,7 @@ fn main() {
 
 pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
     let mut window_state = StateApplication::new(120.0);
     let _ = event_loop.run_app(&mut window_state);

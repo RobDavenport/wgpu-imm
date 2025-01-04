@@ -85,6 +85,7 @@ impl ApplicationHandler for StateApplication {
                             .draw(&mut self.state.as_mut().unwrap().virtual_gpu);
                         self.state.as_mut().unwrap().render().unwrap();
                     }
+                    self.state.as_ref().unwrap().window().request_redraw();
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let state = &mut self.state.as_mut().unwrap();
@@ -135,11 +136,6 @@ impl ApplicationHandler for StateApplication {
                 _ => {}
             }
         }
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        let window = self.state.as_ref().unwrap().window();
-        window.request_redraw();
     }
 }
 
