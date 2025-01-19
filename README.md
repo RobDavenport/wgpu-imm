@@ -29,3 +29,8 @@ For 2d Quad Rendering...
 - Z 1.0 is "Farthest from the screen"
 - Any values less than -1, or greater than 1.0, wont be drawn as they fall outside of NDC coordinates
 - Prefer lower values instead of 0.0 as this can intersect with 3d geometry
+
+Assets:
+https://observablehq.com/d/2c53c7ee9f619740?ui=classic
+https://bratbun.gumroad.com/l/MatcapPack
+https://finestudio.gumroad.com/l/aura

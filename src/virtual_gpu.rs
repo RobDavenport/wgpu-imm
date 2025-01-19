@@ -27,7 +27,7 @@ pub struct VirtualGpu {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 
-    pub render_pipelines: [RenderPipeline; 7],
+    pub render_pipelines: [RenderPipeline; 8],
     pub textures: Textures,
     pub quad_renderer: QuadRenderer,
     pub preloaded_renderer: PreloadedRenderer,
@@ -148,9 +148,21 @@ impl VirtualGpu {
                 bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
             );
 
-            self.queue.write_buffer(&self.camera.views_buffer, 0, bytemuck::bytes_of(&self.camera.get_view()));
-            self.queue.write_buffer(&self.camera.positions_buffer, 0, bytemuck::bytes_of(&self.camera.eye.extend(1.0)));
-            self.queue.write_buffer(&self.camera.projections_buffer, 0, bytemuck::bytes_of(&self.camera.get_projection_3d()));
+            self.queue.write_buffer(
+                &self.camera.views_buffer,
+                0,
+                bytemuck::bytes_of(&self.camera.get_view()),
+            );
+            self.queue.write_buffer(
+                &self.camera.positions_buffer,
+                0,
+                bytemuck::bytes_of(&self.camera.eye.extend(1.0)),
+            );
+            self.queue.write_buffer(
+                &self.camera.projections_buffer,
+                0,
+                bytemuck::bytes_of(&self.camera.get_projection_3d()),
+            );
 
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
@@ -220,8 +232,8 @@ fn generate_render_pipelines(
     shader: &wgpu::ShaderModule,
     layout: &wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
-) -> [RenderPipeline; 7] {
-    const PIPELINES: [Pipeline; 7] = [
+) -> [RenderPipeline; 8] {
+    const PIPELINES: [Pipeline; 8] = [
         Pipeline::Color,
         Pipeline::Uv,
         Pipeline::ColorUv,
@@ -229,6 +241,7 @@ fn generate_render_pipelines(
         Pipeline::UvLit,
         Pipeline::ColorUvLit,
         Pipeline::Quad2d,
+        Pipeline::Matcap,
     ];
 
     std::array::from_fn(|i| {

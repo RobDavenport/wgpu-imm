@@ -48,9 +48,6 @@ impl Importer {
         if self.has_uvs() {
             // We have UVs, so we want to use COLOR for LIGHTING
             std::mem::swap(&mut self.colors, &mut self.lighting);
-        } else {
-            // We don't have UVs, so normals are extra unneeded data
-            self.normals.clear();
         }
     }
 
@@ -59,7 +56,14 @@ impl Importer {
             (true, true) => Pipeline::ColorUv,
             (true, false) => Pipeline::Color,
             (false, true) => Pipeline::Uv,
-            (false, false) => return None,
+            (false, false) => {
+                // Has Matcap to provide color
+                if self.has_normals() {
+                    return Some(Pipeline::Matcap)
+                } else {
+                    return None;
+                }
+            },
         };
 
         if self.has_lighting() && self.has_normals() {
@@ -78,7 +82,7 @@ impl Importer {
             println!("Importing pipeline: {:?}", pipeline);
             pipeline
         } else {
-            println!("Invalid import.");
+            println!("Import: Invalid import.");
             return out;
         };
 
@@ -91,6 +95,7 @@ impl Importer {
 
         let import_color = pipeline.has_color();
         let import_uv = pipeline.has_uv();
+        let import_normals = pipeline.has_normals();
         let import_lighting = pipeline.has_lighting();
 
         for (index, position) in self.positions.chunks_exact(3).enumerate() {
@@ -109,8 +114,11 @@ impl Importer {
                 out.extend_from_slice(&self.uvs[uv_start..uv_end]);
             }
 
-            if import_lighting {
+            if import_normals {
                 out.extend_from_slice(&self.normals[start..end]);
+            }
+
+            if import_lighting {
                 out.extend_from_slice(&self.lighting[start..end]);
             }
         }
@@ -127,12 +135,13 @@ impl Importer {
             println!("Importing pipeline: {:?}", pipeline);
             pipeline
         } else {
-            println!("Invalid import.");
+            println!("Import Indexed-to-non-indexed: Invalid import.");
             return out;
         };
 
         let import_color = pipeline.has_color();
         let import_uv = pipeline.has_uv();
+        let import_normals = pipeline.has_normals();
         let import_lighting = pipeline.has_lighting();
 
         println!("import lighting: {import_lighting}");
@@ -162,8 +171,11 @@ impl Importer {
                 out.extend_from_slice(&self.uvs[uv_start..uv_end]);
             }
 
-            if import_lighting {
+            if import_normals {
                 out.extend_from_slice(&self.normals[start..end]);
+            }
+
+            if import_lighting {
                 out.extend_from_slice(&self.lighting[start..end]);
             }
         }

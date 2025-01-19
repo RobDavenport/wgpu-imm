@@ -1,4 +1,4 @@
-use image::ImageReader;
+use image::{GenericImageView, ImageReader};
 
 pub struct Textures {
     pub bind_group_layout: wgpu::BindGroupLayout,
@@ -16,7 +16,7 @@ pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescripto
                 ty: wgpu::BindingType::Texture {
                     multisampled: false,
                     view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
                 count: None,
             },
@@ -35,7 +35,6 @@ impl Textures {
     pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
         let bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc());
 
-        
         let sampler = device.create_sampler(&sampler_descriptor());
 
         Self {
@@ -53,7 +52,10 @@ impl Textures {
         path: &str,
     ) -> usize {
         let image = ImageReader::open(path).unwrap().decode().unwrap();
-        let image = image.to_rgba8();
+        let image = match image.as_rgba8() {
+            Some(image) => image,
+            None => &image.to_rgba8(),
+        };
         let dimensions = image.dimensions();
         let size = wgpu::Extent3d {
             width: dimensions.0,
@@ -98,7 +100,7 @@ impl Textures {
                 aspect: wgpu::TextureAspect::All,
             },
             // The actual pixel data
-            &image,
+            image,
             // The layout of the texture
             wgpu::ImageDataLayout {
                 offset: 0,

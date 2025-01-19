@@ -9,6 +9,7 @@ pub enum Pipeline {
     UvLit,
     ColorUvLit,
     Quad2d,
+    Matcap,
 }
 
 impl Pipeline {
@@ -21,6 +22,7 @@ impl Pipeline {
             Pipeline::UvLit => "uv lit",
             Pipeline::ColorUvLit => "color uv lit",
             Pipeline::Quad2d => "quad 2d",
+            Pipeline::Matcap => "matcap",
         }
     }
 
@@ -33,6 +35,7 @@ impl Pipeline {
             Pipeline::UvLit => "vs_uv_lit",
             Pipeline::ColorUvLit => "vs_color_uv_lit",
             Pipeline::Quad2d => "vs_quad_2d",
+            Pipeline::Matcap => "vs_matcap",
         }
     }
 
@@ -44,6 +47,7 @@ impl Pipeline {
             Pipeline::ColorLit => "fs_color_lit",
             Pipeline::UvLit => "fs_uv_lit",
             Pipeline::ColorUvLit => "fs_color_uv_lit",
+            Pipeline::Matcap => "fs_matcap",
         }
     }
 
@@ -68,6 +72,7 @@ impl Pipeline {
             Pipeline::UvLit => vertex::uv_lit(),
             Pipeline::ColorUvLit => vertex::color_uv_lit(),
             Pipeline::Quad2d => vertex::uv(),
+            Pipeline::Matcap => vertex::matcap(),
         }
     }
 
@@ -80,6 +85,7 @@ impl Pipeline {
             Pipeline::UvLit => false,
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => true,
+            Pipeline::Matcap => false,
         }
     }
 
@@ -92,6 +98,7 @@ impl Pipeline {
             Pipeline::UvLit => true,
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => true,
+            Pipeline::Matcap => false,
         }
     }
 
@@ -104,6 +111,20 @@ impl Pipeline {
             Pipeline::UvLit => true,
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => false,
+            Pipeline::Matcap => false,
+        }
+    }
+
+    pub fn has_normals(&self) -> bool {
+        match self {
+            Pipeline::Color => false,
+            Pipeline::Uv => false,
+            Pipeline::ColorUv => false,
+            Pipeline::ColorLit => true,
+            Pipeline::UvLit => true,
+            Pipeline::ColorUvLit => true,
+            Pipeline::Quad2d => false,
+            Pipeline::Matcap => true,
         }
     }
 
@@ -116,6 +137,7 @@ impl Pipeline {
             Pipeline::UvLit => Pipeline::UvLit,
             Pipeline::ColorUvLit => Pipeline::ColorUvLit,
             Pipeline::Quad2d => panic!("Quad2d can't be lit"),
+            Pipeline::Matcap => panic!("Matcap can't be lit"),
         }
     }
 
@@ -128,12 +150,13 @@ impl Pipeline {
             Pipeline::UvLit => 4,
             Pipeline::ColorUvLit => 5,
             Pipeline::Quad2d => 6,
+            Pipeline::Matcap => 7,
         }
     }
 
     pub fn get_attribute_count(&self) -> usize {
         3 + match self {
-            Pipeline::Color => 3,
+            Pipeline::Color | Pipeline::Matcap => 3,
             Pipeline::Uv => 2,
             Pipeline::ColorUv | Pipeline::Quad2d => 5,
             Pipeline::ColorLit => 9,

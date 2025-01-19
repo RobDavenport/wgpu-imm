@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, fs};
 
 use crate::{
     contexts::{Draw3dContext, Init3dContext},
@@ -21,6 +21,9 @@ pub struct Game {
     tex_grid: usize,
 
     pbr_test: usize,
+
+    matcaps: Vec<usize>,
+    monkey_index: usize,
 }
 
 impl Game {
@@ -39,6 +42,8 @@ impl Game {
             test_sphere: 0,
             tex_grid: 0,
             pbr_test: 0,
+            monkey_index: 0,
+            matcaps: Vec::new(),
         }
     }
 
@@ -80,6 +85,16 @@ impl Game {
             }
         }
 
+        for file in fs::read_dir("assets/matcaps").unwrap() {
+            let file = file.unwrap();
+            println!("Loading matcap: {:?}", file.file_name());
+            let id = gpu.load_texture(file.path().to_str().unwrap());
+            self.matcaps.push(id);
+        }
+
+        let (monkey, monkey_indices) = importer::import_gltf("assets/monkey1.glb").import_indexed(Pipeline::Matcap);
+        self.monkey_index = gpu.load_static_mesh_indexed(&monkey, &monkey_indices, Pipeline::Matcap);
+
         self.pbr_test = gpu.load_static_mesh(&spheres, Pipeline::ColorLit);
     }
 
@@ -88,6 +103,23 @@ impl Game {
     }
 
     pub fn draw(&self, state: &mut impl Draw3dContext) {
+        self.draw_matcaps(state);
+        // self.draw_pbr_test(state);
+    }
+
+    fn draw_matcaps(&self, state: &mut impl Draw3dContext) {
+        let max = self.matcaps.len() as f32;
+        let offset = -(max / 2.0);
+        let distance = 2.5;
+        let rotation = Mat4::from_rotation_y(self.t * 0.5);
+        for (i, tex_id) in self.matcaps.iter().enumerate() {
+            state.push_matrix(Mat4::from_translation(Vec3::new(offset + distance * i as f32, 0.0, 0.0)) * rotation);
+            state.set_texture(*tex_id);
+            state.draw_static_mesh_indexed(self.monkey_index);
+        }
+    }
+
+    fn draw_pbr_test(&self, state: &mut impl Draw3dContext) {
         state.push_matrix(Mat4::IDENTITY);
         state.draw_static_mesh(self.pbr_test);
 
