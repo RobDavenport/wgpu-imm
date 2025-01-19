@@ -619,7 +619,7 @@ struct VertexMatcapIn {
 struct VertexMatcapOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) view_pos: vec3<f32>,
-    @location(3) view_normals: vec3<f32>,
+    @location(3) normals: vec3<f32>,
 }
 
 @vertex
@@ -639,26 +639,24 @@ fn vs_matcap(
 
     out.clip_position = camera.proj * view_position;
     out.view_pos = view_position.xyz;
-    out.view_normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
 
     return out;
 }
 
 @fragment
 fn fs_matcap(in: VertexMatcapOut) -> @location(0) vec4<f32> {
-    let normal = normalize(in.view_normals);
+    let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
     let uv = matcap_uv(view, normal);
-    var texel = textureSample(t_albedo, s_env, uv).rgb;
-    return vec4<f32>(texel, 1.0);
+    let matcap_texel = textureSample(t_albedo, s_env, uv).rgb;
+    return vec4<f32>(matcap_texel, 1.0);
 }
 
 struct VertexMatcapColorIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
-    @location(2) uvs: vec2<f32>,
     @location(3) normals: vec3<f32>,
-    @location(4) lighting: vec3<f32>,
 };
 
 struct VertexMatcapColorOut {
@@ -668,12 +666,42 @@ struct VertexMatcapColorOut {
     @location(0) view_pos: vec3<f32>,
 };
 
+@vertex
+fn vs_matcap_color(
+    model: VertexMatcapColorIn,
+    instance: InstanceInput,
+) -> VertexMatcapColorOut {
+    var out: VertexMatcapColorOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+
+    out.clip_position = camera.proj * view_position;
+    out.view_pos = view_position.xyz;
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.color = model.color;
+
+    return out;
+}
+
+@fragment
+fn fs_matcap_color(in: VertexMatcapColorOut) -> @location(0) vec4<f32> {
+    let normal = normalize(in.normals);
+    let view = normalize(-in.view_pos);
+    let matcap_uv = matcap_uv(view, normal);
+    let matcap_texel = textureSample(t_albedo, s_env, matcap_uv).rgb;
+    return vec4<f32>(matcap_texel * in.color, 1.0);
+}
+
 struct VertexMatcapUvIn {
     @location(0) position: vec3<f32>,
-    @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
     @location(3) normals: vec3<f32>,
-    @location(4) lighting: vec3<f32>,
 };
 
 struct VertexMatcapUvOut {
@@ -683,12 +711,44 @@ struct VertexMatcapUvOut {
     @location(0) view_pos: vec3<f32>,
 };
 
+@vertex
+fn vs_matcap_uv(
+    model: VertexMatcapUvIn,
+    instance: InstanceInput,
+) -> VertexMatcapUvOut {
+    var out: VertexMatcapUvOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+
+    out.clip_position = camera.proj * view_position;
+    out.view_pos = view_position.xyz;
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.uvs = model.uvs;
+
+    return out;
+}
+
+@fragment
+fn fs_matcap_uv(in: VertexMatcapUvOut) -> @location(0) vec4<f32> {
+    let normal = normalize(in.normals);
+    let view = normalize(-in.view_pos);
+    let matcap_uv = matcap_uv(view, normal);
+    let matcap_texel = textureSample(t_albedo, s_env, matcap_uv).rgb;
+    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+    return vec4<f32>(matcap_texel * texel, 1.0);
+}
+
 struct VertexMatcapColorUvIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(2) uvs: vec2<f32>,
     @location(3) normals: vec3<f32>,
-    @location(4) lighting: vec3<f32>,
 };
 
 struct VertexMatcapColorUvOut {
@@ -698,3 +758,38 @@ struct VertexMatcapColorUvOut {
     @location(3) normals: vec3<f32>,
     @location(0) view_pos: vec3<f32>,
 };
+
+@vertex
+fn vs_matcap_color_uv(
+    model: VertexMatcapColorUvIn,
+    instance: InstanceInput,
+) -> VertexMatcapColorUvOut {
+    var out: VertexMatcapColorUvOut;
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+
+    out.clip_position = camera.proj * view_position;
+    out.view_pos = view_position.xyz;
+    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.uvs = model.uvs;
+    out.color = model.color;
+
+    return out;
+}
+
+@fragment
+fn fs_matcap_color_uv(in: VertexMatcapColorUvOut) -> @location(0) vec4<f32> {
+    let normal = normalize(in.normals);
+    let view = normalize(-in.view_pos);
+    let matcap_uv = matcap_uv(view, normal);
+    let matcap_texel = textureSample(t_albedo, s_env, matcap_uv).rgb;
+    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+
+    return vec4<f32>(matcap_texel * texel * in.color, 1.0);
+}

@@ -59,11 +59,11 @@ impl Importer {
             (false, false) => {
                 // Has Matcap to provide color
                 if self.has_normals() {
-                    return Some(Pipeline::Matcap)
+                    return Some(Pipeline::Matcap);
                 } else {
                     return None;
                 }
-            },
+            }
         };
 
         if self.has_lighting() && self.has_normals() {

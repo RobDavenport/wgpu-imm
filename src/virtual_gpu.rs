@@ -27,7 +27,7 @@ pub struct VirtualGpu {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 
-    pub render_pipelines: [RenderPipeline; 8],
+    pub render_pipelines: [RenderPipeline; 11],
     pub textures: Textures,
     pub quad_renderer: QuadRenderer,
     pub preloaded_renderer: PreloadedRenderer,
@@ -232,8 +232,8 @@ fn generate_render_pipelines(
     shader: &wgpu::ShaderModule,
     layout: &wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
-) -> [RenderPipeline; 8] {
-    const PIPELINES: [Pipeline; 8] = [
+) -> [RenderPipeline; 11] {
+    const PIPELINES: [Pipeline; 11] = [
         Pipeline::Color,
         Pipeline::Uv,
         Pipeline::ColorUv,
@@ -242,6 +242,9 @@ fn generate_render_pipelines(
         Pipeline::ColorUvLit,
         Pipeline::Quad2d,
         Pipeline::Matcap,
+        Pipeline::MatcapColor,
+        Pipeline::MatcapUv,
+        Pipeline::MatcapColorUv,
     ];
 
     std::array::from_fn(|i| {

@@ -10,6 +10,9 @@ pub enum Pipeline {
     ColorUvLit,
     Quad2d,
     Matcap,
+    MatcapColor,
+    MatcapUv,
+    MatcapColorUv,
 }
 
 impl Pipeline {
@@ -23,6 +26,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => "color uv lit",
             Pipeline::Quad2d => "quad 2d",
             Pipeline::Matcap => "matcap",
+            Pipeline::MatcapColor => "matcap color",
+            Pipeline::MatcapUv => "matcap uv",
+            Pipeline::MatcapColorUv => "matcap color uv",
         }
     }
 
@@ -36,6 +42,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => "vs_color_uv_lit",
             Pipeline::Quad2d => "vs_quad_2d",
             Pipeline::Matcap => "vs_matcap",
+            Pipeline::MatcapColor => "vs_matcap_color",
+            Pipeline::MatcapUv => "vs_matcap_uv",
+            Pipeline::MatcapColorUv => "vs_matcap_color_uv",
         }
     }
 
@@ -48,6 +57,9 @@ impl Pipeline {
             Pipeline::UvLit => "fs_uv_lit",
             Pipeline::ColorUvLit => "fs_color_uv_lit",
             Pipeline::Matcap => "fs_matcap",
+            Pipeline::MatcapColor => "fs_matcap_color",
+            Pipeline::MatcapUv => "fs_matcap_uv",
+            Pipeline::MatcapColorUv => "fs_matcap_color_uv",
         }
     }
 
@@ -73,6 +85,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => vertex::color_uv_lit(),
             Pipeline::Quad2d => vertex::uv(),
             Pipeline::Matcap => vertex::matcap(),
+            Pipeline::MatcapColor => vertex::matcap_color(),
+            Pipeline::MatcapUv => vertex::matcap_uv(),
+            Pipeline::MatcapColorUv => vertex::matcap_color_uv(),
         }
     }
 
@@ -86,6 +101,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => true,
             Pipeline::Matcap => false,
+            Pipeline::MatcapColor => true,
+            Pipeline::MatcapUv => false,
+            Pipeline::MatcapColorUv => true,
         }
     }
 
@@ -99,6 +117,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => true,
             Pipeline::Matcap => false,
+            Pipeline::MatcapColor => false,
+            Pipeline::MatcapUv => true,
+            Pipeline::MatcapColorUv => true,
         }
     }
 
@@ -112,6 +133,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => false,
             Pipeline::Matcap => false,
+            Pipeline::MatcapColor => false,
+            Pipeline::MatcapUv => false,
+            Pipeline::MatcapColorUv => false,
         }
     }
 
@@ -125,6 +149,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => true,
             Pipeline::Quad2d => false,
             Pipeline::Matcap => true,
+            Pipeline::MatcapColor => true,
+            Pipeline::MatcapUv => true,
+            Pipeline::MatcapColorUv => true,
         }
     }
 
@@ -138,6 +165,9 @@ impl Pipeline {
             Pipeline::ColorUvLit => Pipeline::ColorUvLit,
             Pipeline::Quad2d => panic!("Quad2d can't be lit"),
             Pipeline::Matcap => panic!("Matcap can't be lit"),
+            Pipeline::MatcapColor => panic!("Matcap Color can't be lit"),
+            Pipeline::MatcapUv => panic!("Matcap Uv can't be lit"),
+            Pipeline::MatcapColorUv => panic!("Matcap Color Uv can't be lit"),
         }
     }
 
@@ -151,17 +181,24 @@ impl Pipeline {
             Pipeline::ColorUvLit => 5,
             Pipeline::Quad2d => 6,
             Pipeline::Matcap => 7,
+            Pipeline::MatcapColor => 8,
+            Pipeline::MatcapUv => 9,
+            Pipeline::MatcapColorUv => 10,
         }
     }
 
     pub fn get_attribute_count(&self) -> usize {
         3 + match self {
-            Pipeline::Color | Pipeline::Matcap => 3,
+            Pipeline::Color => 3,
             Pipeline::Uv => 2,
             Pipeline::ColorUv | Pipeline::Quad2d => 5,
             Pipeline::ColorLit => 9,
             Pipeline::UvLit => 8,
             Pipeline::ColorUvLit => 11,
+            Pipeline::Matcap => 3,
+            Pipeline::MatcapColor => 6,
+            Pipeline::MatcapUv => 5,
+            Pipeline::MatcapColorUv => 8,
         }
     }
 

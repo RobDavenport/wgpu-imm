@@ -92,8 +92,10 @@ impl Game {
             self.matcaps.push(id);
         }
 
-        let (monkey, monkey_indices) = importer::import_gltf("assets/monkey1.glb").import_indexed(Pipeline::Matcap);
-        self.monkey_index = gpu.load_static_mesh_indexed(&monkey, &monkey_indices, Pipeline::Matcap);
+        let (monkey, monkey_indices) =
+            importer::import_gltf("assets/monkey1.glb").import_indexed(Pipeline::Matcap);
+        self.monkey_index =
+            gpu.load_static_mesh_indexed(&monkey, &monkey_indices, Pipeline::Matcap);
 
         self.pbr_test = gpu.load_static_mesh(&spheres, Pipeline::ColorLit);
     }
@@ -113,7 +115,10 @@ impl Game {
         let distance = 2.5;
         let rotation = Mat4::from_rotation_y(self.t * 0.5);
         for (i, tex_id) in self.matcaps.iter().enumerate() {
-            state.push_matrix(Mat4::from_translation(Vec3::new(offset + distance * i as f32, 0.0, 0.0)) * rotation);
+            state.push_matrix(
+                Mat4::from_translation(Vec3::new(offset + distance * i as f32, 0.0, 0.0))
+                    * rotation,
+            );
             state.set_texture(*tex_id);
             state.draw_static_mesh_indexed(self.monkey_index);
         }
