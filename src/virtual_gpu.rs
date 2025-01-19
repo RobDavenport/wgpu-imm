@@ -148,6 +148,10 @@ impl VirtualGpu {
                 bytemuck::cast_slice(&self.camera.get_camera_uniforms()),
             );
 
+            self.queue.write_buffer(&self.camera.views_buffer, 0, bytemuck::bytes_of(&self.camera.get_view()));
+            self.queue.write_buffer(&self.camera.positions_buffer, 0, bytemuck::bytes_of(&self.camera.eye.extend(1.0)));
+            self.queue.write_buffer(&self.camera.projections_buffer, 0, bytemuck::bytes_of(&self.camera.get_projection_3d()));
+
             render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
             render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
             render_pass.set_bind_group(

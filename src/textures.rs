@@ -4,6 +4,7 @@ pub struct Textures {
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub textures: Vec<Texture>,
     pub depth_texture: DepthTexture,
+    sampler: wgpu::Sampler,
 }
 
 pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescriptor<'static> {
@@ -34,10 +35,14 @@ impl Textures {
     pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
         let bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc());
 
+        
+        let sampler = device.create_sampler(&sampler_descriptor());
+
         Self {
             bind_group_layout,
             textures: Vec::new(),
             depth_texture: DepthTexture::create_depth_texture(device, config, "depth_texture"),
+            sampler,
         }
     }
 
@@ -67,7 +72,6 @@ impl Textures {
             view_formats: &[],
         });
 
-        let sampler = device.create_sampler(&sampler_descriptor());
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -79,7 +83,7 @@ impl Textures {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ],
             label: Some(path),

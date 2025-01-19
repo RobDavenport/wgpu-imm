@@ -17,16 +17,78 @@ pub struct Camera {
     pub buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub bind_group_layout: wgpu::BindGroupLayout,
+
+    // Test Stuff:
+    pub views_buffer: wgpu::Buffer,
+    pub positions_buffer: wgpu::Buffer,
+    pub projections_buffer: wgpu::Buffer,
 }
 
 impl Camera {
     pub fn new(device: &wgpu::Device, config: &SurfaceConfiguration) -> Self {
+        let views_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Views Buffer"),
+            size: 8 * 1024 * 1024,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false
+        });
+
+        let positions_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Positions Buffer"),
+            size: 8 * 1024 * 1024,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false
+        });
+
+        let projections_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Views Buffer"),
+            size: 8 * 1024 * 1024,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false
+        });
+
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+
+            // Views
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            
+            // Positions
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            
+            // Projections
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -47,6 +109,18 @@ impl Camera {
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: views_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: positions_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: projections_buffer.as_entire_binding(),
             }],
             label: Some("camera_bind_group"),
         });
@@ -63,6 +137,9 @@ impl Camera {
             buffer,
             bind_group,
             bind_group_layout,
+            views_buffer,
+positions_buffer,
+projections_buffer,
         }
     }
 
@@ -74,7 +151,7 @@ impl Camera {
         Mat4::look_to_rh(self.eye.into(), self.get_forward().into(), self.up.into())
     }
 
-    fn get_projection_3d(&self) -> Mat4 {
+    pub fn get_projection_3d(&self) -> Mat4 {
         Mat4::perspective_infinite_reverse_rh(self.fovy.to_radians(), self.aspect, self.z_near)
     }
 

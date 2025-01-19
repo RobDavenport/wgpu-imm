@@ -16,6 +16,15 @@ struct Camera {
     pos: vec4<f32>,
 }
 
+@group(0) @binding(1)
+var<storage> views: array<mat4x4<f32>>;
+
+@group(0) @binding(2)
+var<storage> positions: array<vec4<f32>>;
+
+@group(0) @binding(3)
+var<storage> projections: array<mat4x4<f32>>;
+
 // Texture Bindings
 @group(1) @binding(0)
 var t_albedo: texture_2d<f32>;
@@ -200,17 +209,17 @@ fn vs_color_lit(
         instance.model_matrix_3,
     );
 
-    let view_position = camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+    let view_position = views[0] * model_matrix * vec4<f32>(model.position, 1.0);
 
-    out.clip_position = camera.proj * view_position;
+    out.clip_position = projections[0] * view_position;
     out.color = model.color;
-    out.normals = normalize((camera.view * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
+    out.normals = normalize((views[0] * model_matrix * vec4<f32>(model.normals, 0.0)).xyz);
     out.view_pos = view_position.xyz;
     out.lighting = model.lighting;
 
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
     let world_normal = normalize(model_matrix * vec4<f32>(model.normals, 0.0));
-    let incoming = normalize(camera.pos - world_position);
+    let incoming = normalize(positions[0] - world_position);
     out.world_reflection = reflect(incoming, world_normal).xyz;
 
     return out;

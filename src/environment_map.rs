@@ -36,19 +36,19 @@ impl EnvironmentUniforms {
 impl EnvironmentMap {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         const IMAGES: [&str; 6] = [
-            "assets/skybox/right.jpg",
-            "assets/skybox/left.jpg",
-            "assets/skybox/top.jpg",
-            "assets/skybox/bottom.jpg",
-            "assets/skybox/front.jpg",
-            "assets/skybox/back.jpg",
+            "assets/skybox3/right.png",
+            "assets/skybox3/left.png",
+            "assets/skybox3/top.png",
+            "assets/skybox3/bottom.png",
+            "assets/skybox3/front.png",
+            "assets/skybox3/back.png",
         ];
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Environment Map Texture"),
             size: wgpu::Extent3d {
-                width: 2048,
-                height: 2048,
+                width: 128,
+                height: 128,
                 // A cube has 6 sides, so we need 6 layers
                 depth_or_array_layers: 6,
             },
@@ -72,7 +72,7 @@ impl EnvironmentMap {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
+            mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
