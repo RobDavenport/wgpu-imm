@@ -30,9 +30,11 @@ For 2d Quad Rendering...
 - Any values less than -1, or greater than 1.0, wont be drawn as they fall outside of NDC coordinates
 - Prefer lower values instead of 0.0 as this can intersect with 3d geometry
 
-Assets:
+Matcap Assets:
 https://observablehq.com/d/2c53c7ee9f619740?ui=classic
 https://bratbun.gumroad.com/l/MatcapPack
 https://finestudio.gumroad.com/l/aura
 
+Mesh Assets:
 https://sketchfab.com/3d-models/shiba-faef9fe5ace445e7b2989d1c1ece361c
+https://sketchfab.com/3d-models/pixel-low-poly-spaceship-eaad1ae4bf6a43fd9f3a80400dacbbfd

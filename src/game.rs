@@ -27,6 +27,9 @@ pub struct Game {
     dog_matcap_mesh: usize,
     dog_tex: usize,
     dog_static: usize,
+
+    ship_tex: usize,
+    ship_mesh: usize,
 }
 
 impl Game {
@@ -50,6 +53,8 @@ impl Game {
             dog_matcap_mesh: 0,
             dog_tex: 0,
             dog_static: 0,
+            ship_tex: 0,
+            ship_mesh: 0,
         }
     }
 
@@ -57,6 +62,8 @@ impl Game {
         self.fox_tex = gpu.load_texture("assets/Fox.png", false);
         self.dog_tex = gpu.load_texture("assets/dog tex.png", false);
         self.tex_grid = gpu.load_texture("assets/color grid 128x128.png", false);
+        self.ship_tex = gpu.load_texture("assets/ship tex.png", false);
+
         let (vertices, indices) =
             importer::import_gltf("assets/BoxVertexColors.glb").import_indexed(Pipeline::Color);
 
@@ -76,6 +83,10 @@ impl Game {
 
         let (data, indices) = importer::import_gltf("assets/dog.glb").import_indexed(Pipeline::Uv);
         self.dog_static = gpu.load_static_mesh_indexed(&data, &indices, Pipeline::Uv);
+
+        let (data, indices) =
+            importer::import_gltf("assets/ship.glb").import_indexed(Pipeline::MatcapUv);
+        self.ship_mesh = gpu.load_static_mesh_indexed(&data, &indices, Pipeline::MatcapUv);
 
         let (sphere, sphere_indices) =
             importer::import_gltf("assets/test sphere base.glb").import_indexed(Pipeline::ColorLit);
@@ -124,12 +135,13 @@ impl Game {
     }
 
     fn draw_matcaps(&self, state: &mut impl Draw3dContext) {
-        state.set_texture(self.dog_tex);
-
         let max = self.matcaps.len() as f32;
         let offset = -(max / 2.0);
         let distance = 2.5;
         let rotation = Mat4::from_rotation_y(self.t * 0.5);
+
+        let scale = Mat4::from_scale(Vec3::splat(0.25));
+
         for (i, matcap_id) in self.matcaps.iter().enumerate() {
             let translation = Vec3::new(offset + distance * i as f32, 0.0, 0.0);
             state.push_matrix(Mat4::from_translation(translation) * rotation);
@@ -139,9 +151,17 @@ impl Game {
             state.push_matrix(
                 Mat4::from_translation(translation + Vec3::new(0.0, 2.0, 0.0)) * rotation,
             );
+            state.set_texture(self.dog_tex);
             state.draw_static_mesh_indexed(self.dog_matcap_mesh);
+
+            state.push_matrix(
+                Mat4::from_translation(translation + Vec3::new(0.0, -2.0, 0.0)) * rotation * scale,
+            );
+            state.set_texture(self.ship_tex);
+            state.draw_static_mesh_indexed(self.ship_mesh);
         }
 
+        state.set_texture(self.dog_tex);
         state.push_matrix(Mat4::IDENTITY);
         state.draw_static_mesh_indexed(self.dog_static);
     }
