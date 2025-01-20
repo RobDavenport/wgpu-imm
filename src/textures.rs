@@ -6,7 +6,7 @@ pub struct Textures {
     pub textures: Vec<Texture>,
     pub depth_texture: DepthTexture,
     sampler: wgpu::Sampler,
-    matcap_sampler: wgpu::Sampler,
+    pub matcap_sampler: wgpu::Sampler,
 }
 
 pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescriptor<'static> {
@@ -50,6 +50,36 @@ pub const fn bind_group_layout_desc_matcap() -> &'static wgpu::BindGroupLayoutDe
                 binding: 1,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
                 count: None,
             },
         ],
@@ -114,7 +144,7 @@ impl Textures {
             (&self.sampler, &self.bind_group_layout)
         };
 
-        // TODO: This needs to be created dynamically to handle different textures & matcaps
+        panic!("Move the following code into the if/else above!");
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &layout,
             entries: &[
@@ -149,7 +179,7 @@ impl Textures {
             size,
         );
 
-        let texture = Texture { bind_group };
+        let texture = Texture { view, bind_group };
 
         self.textures.push(texture);
         self.textures.len() - 1
@@ -158,6 +188,7 @@ impl Textures {
 
 pub struct Texture {
     pub bind_group: wgpu::BindGroup,
+    pub view: wgpu::TextureView,
 }
 
 pub fn sampler_descriptor() -> wgpu::SamplerDescriptor<'static> {

@@ -541,9 +541,9 @@ impl contexts::Draw3dContext for VirtualGpu {
             .push(Command::SetTexture(tex_id));
     }
 
-    fn set_matcap(&mut self, matcap_id: usize) {
+    fn set_matcap(&mut self, matcap_id: usize, layer_index: usize) {
         self.virtual_render_pass
             .commands
-            .push(Command::SetMatcap(matcap_id))
+            .push(Command::SetMatcap(matcap_id, layer_index))
     }
 }

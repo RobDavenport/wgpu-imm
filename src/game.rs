@@ -145,7 +145,7 @@ impl Game {
         for (i, matcap_id) in self.matcaps.iter().enumerate() {
             let translation = Vec3::new(offset + distance * i as f32, 0.0, 0.0);
             state.push_matrix(Mat4::from_translation(translation) * rotation);
-            state.set_matcap(*matcap_id);
+            state.set_matcap(*matcap_id, 0);
             state.draw_static_mesh_indexed(self.monkey_index);
 
             state.push_matrix(

@@ -25,5 +25,5 @@ pub trait Draw3dContext {
     fn draw_static_mesh_indexed(&mut self, index: usize);
     fn draw_sprite(&mut self, index: usize);
     fn set_texture(&mut self, tex_id: usize);
-    fn set_matcap(&mut self, matcap_id: usize);
+    fn set_matcap(&mut self, matcap_id: usize, layer_index: usize);
 }

@@ -16,9 +16,9 @@ pub struct VirtualRenderPass {
 
 pub enum Command {
     SetPipeline(Pipeline),
-    Draw(u32),         //Vertex Count
-    SetTexture(usize), // TextureId
-    SetMatcap(usize),  // Matcap Id
+    Draw(u32),               //Vertex Count
+    SetTexture(usize),       // TextureId
+    SetMatcap(usize, usize), // Matcap Id, Index
     SetModelMatrix,
     DrawStaticMesh(usize),        // Static Mesh ID
     DrawStaticMeshIndexed(usize), // Static Mesh Indexed Id
@@ -47,6 +47,8 @@ impl VirtualRenderPass {
         let mut current_vertex_size = 0;
         let mut current_model_matrix = 0;
 
+        let mut matcap_indices = [0; 4];
+
         for command in self.commands.iter() {
             match command {
                 Command::SetPipeline(pipeline) => {
@@ -68,9 +70,46 @@ impl VirtualRenderPass {
                     let texture = &gpu.textures.textures[*tex_index];
                     rp.set_bind_group(TEXTURE_BIND_GROUP_INDEX, &texture.bind_group, &[]);
                 }
-                Command::SetMatcap(matcap_index) => {
-                    let matcap = &gpu.textures.textures[*matcap_index];
-                    rp.set_bind_group(MATCAP_BIND_GROUP_INDEX, &matcap.bind_group, &[]);
+                Command::SetMatcap(matcap_index, layer_index) => {
+                    matcap_indices[*layer_index] = *matcap_index;
+                    let layout = &gpu.textures.matcap_bind_group_layout;
+                    let bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: None,
+                        layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &gpu.textures.textures[matcap_indices[0]].view,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(
+                                    &gpu.textures.matcap_sampler,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &gpu.textures.textures[matcap_indices[1]].view,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &gpu.textures.textures[matcap_indices[2]].view,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 4,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &gpu.textures.textures[matcap_indices[3]].view,
+                                ),
+                            },
+                        ],
+                    });
+                    rp.set_bind_group(MATCAP_BIND_GROUP_INDEX, &bind_group, &[]);
                 }
                 Command::SetModelMatrix => {
                     current_model_matrix += 1;

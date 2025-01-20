@@ -52,6 +52,15 @@ var t_matcap: texture_2d<f32>;
 @group(2) @binding(1)
 var s_matcap: sampler;
 
+@group(2) @binding(2)
+var t_matcap2: texture_2d<f32>;
+
+@group(2) @binding(3)
+var t_matcap3: texture_2d<f32>;
+
+@group(2) @binding(4)
+var t_matcap4: texture_2d<f32>;
+
 struct Light {
     color_max_angle: vec4<f32>,
     position_range: vec4<f32>,
@@ -750,7 +759,8 @@ fn fs_matcap_uv(in: VertexMatcapUvOut) -> @location(0) vec4<f32> {
     let matcap_uv = matcap_uv(view, normal);
     let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
-    return vec4<f32>(matcap_texel * texel, 1.0);
+    let matcap_texel2 = textureSample(t_matcap2, s_matcap, matcap_uv).rgb;
+    return vec4<f32>(matcap_texel * texel * matcap_texel2, 1.0);
 }
 
 struct VertexMatcapColorUvIn {
