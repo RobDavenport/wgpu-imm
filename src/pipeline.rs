@@ -171,6 +171,22 @@ impl Pipeline {
         }
     }
 
+    pub fn matcap(&self) -> Self {
+        match self {
+            Pipeline::Color => Pipeline::MatcapColor,
+            Pipeline::Uv => Pipeline::MatcapUv,
+            Pipeline::ColorUv => Pipeline::MatcapColorUv,
+            Pipeline::ColorLit => panic!("Color Lit can't be a matcap."),
+            Pipeline::UvLit => panic!("Uv Lit can't be a matcap."),
+            Pipeline::ColorUvLit => panic!("Color Uv Lit can't be a matcap."),
+            Pipeline::Quad2d => panic!("Quad2d can't be a matcap"),
+            Pipeline::Matcap => *self,
+            Pipeline::MatcapColor => *self,
+            Pipeline::MatcapUv => *self,
+            Pipeline::MatcapColorUv => *self,
+        }
+    }
+
     pub fn get_shader(&self) -> usize {
         match self {
             Pipeline::Color => 0,

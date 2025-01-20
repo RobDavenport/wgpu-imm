@@ -31,8 +31,6 @@ impl Lights {
             mapped_at_creation: false,
         });
 
-        Self {
-            buffer,
-        }
+        Self { buffer }
     }
 }

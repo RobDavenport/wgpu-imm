@@ -1,6 +1,8 @@
 use crate::{
     pipeline::Pipeline,
-    virtual_gpu::{VirtualGpu, MATCAP_BIND_GROUP_INDEX, TEXTURE_BIND_GROUP_INDEX, VERTEX_BUFFER_INDEX},
+    virtual_gpu::{
+        VirtualGpu, MATCAP_BIND_GROUP_INDEX, TEXTURE_BIND_GROUP_INDEX, VERTEX_BUFFER_INDEX,
+    },
 };
 
 pub struct VirtualRenderPass {
@@ -16,7 +18,7 @@ pub enum Command {
     SetPipeline(Pipeline),
     Draw(u32),         //Vertex Count
     SetTexture(usize), // TextureId
-    SetMatcap(usize), // Matcap Id
+    SetMatcap(usize),  // Matcap Id
     SetModelMatrix,
     DrawStaticMesh(usize),        // Static Mesh ID
     DrawStaticMeshIndexed(usize), // Static Mesh Indexed Id

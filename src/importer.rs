@@ -66,7 +66,10 @@ impl Importer {
             }
         };
 
-        if self.has_lighting() && self.has_normals() {
+        // These are matcaps
+        if self.has_normals() && !self.has_lighting() {
+            Some(color_pipeline.matcap())
+        } else if self.has_lighting() && self.has_normals() {
             Some(color_pipeline.lit())
         } else {
             Some(color_pipeline)
@@ -143,8 +146,6 @@ impl Importer {
         let import_uv = pipeline.has_uv();
         let import_normals = pipeline.has_normals();
         let import_lighting = pipeline.has_lighting();
-
-        println!("import lighting: {import_lighting}");
 
         if self.indices.is_empty() {
             println!("import_indexed_to_non_index called on a mesh without indices.");

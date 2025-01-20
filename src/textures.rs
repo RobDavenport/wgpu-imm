@@ -60,7 +60,8 @@ pub const fn bind_group_layout_desc_matcap() -> &'static wgpu::BindGroupLayoutDe
 impl Textures {
     pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
         let bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc());
-        let matcap_bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc_matcap());
+        let matcap_bind_group_layout =
+            device.create_bind_group_layout(bind_group_layout_desc_matcap());
 
         let sampler = device.create_sampler(&sampler_descriptor());
         let matcap_sampler = device.create_sampler(&matcap_sampler_descriptor());
@@ -71,7 +72,7 @@ impl Textures {
             depth_texture: DepthTexture::create_depth_texture(device, config, "depth_texture"),
             sampler,
             matcap_sampler,
-            matcap_bind_group_layout
+            matcap_bind_group_layout,
         }
     }
 

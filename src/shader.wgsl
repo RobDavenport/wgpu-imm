@@ -184,7 +184,7 @@ fn vs_color_uv(
 
 @fragment
 fn fs_color_uv(in: VertexColorUvOut) -> @location(0) vec4<f32> {
-    var texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     return vec4<f32>(in.color * texel, 1.0);
 }
 

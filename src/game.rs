@@ -10,7 +10,7 @@ use glam::{Mat4, Vec3, Vec3A, Vec4, Vec4Swizzles};
 
 pub struct Game {
     t: f32,
-    tex_index: usize,
+    fox_tex: usize,
 
     immediate_cube: Vec<f32>,
     immediate_fox: Vec<f32>,
@@ -24,6 +24,9 @@ pub struct Game {
 
     matcaps: Vec<usize>,
     monkey_index: usize,
+    dog_matcap_mesh: usize,
+    dog_tex: usize,
+    dog_static: usize,
 }
 
 impl Game {
@@ -36,7 +39,7 @@ impl Game {
             t: 0.0,
             immediate_cube,
             immediate_fox,
-            tex_index: 0,
+            fox_tex: 0,
             cube_static_indexed: 0,
             fox_static_raw: 0,
             test_sphere: 0,
@@ -44,11 +47,15 @@ impl Game {
             pbr_test: 0,
             monkey_index: 0,
             matcaps: Vec::new(),
+            dog_matcap_mesh: 0,
+            dog_tex: 0,
+            dog_static: 0,
         }
     }
 
     pub fn init(&mut self, gpu: &mut impl Init3dContext) {
-        self.tex_index = gpu.load_texture("assets/Fox.png", false);
+        self.fox_tex = gpu.load_texture("assets/Fox.png", false);
+        self.dog_tex = gpu.load_texture("assets/dog tex.png", false);
         self.tex_grid = gpu.load_texture("assets/color grid 128x128.png", false);
         let (vertices, indices) =
             importer::import_gltf("assets/BoxVertexColors.glb").import_indexed(Pipeline::Color);
@@ -62,6 +69,13 @@ impl Game {
 
         let data = importer::import_gltf("assets/Fox.glb").import(Pipeline::Uv);
         self.fox_static_raw = gpu.load_static_mesh(&data, Pipeline::Uv);
+
+        let (data, indices) =
+            importer::import_gltf("assets/dog.glb").import_indexed(Pipeline::MatcapUv);
+        self.dog_matcap_mesh = gpu.load_static_mesh_indexed(&data, &indices, Pipeline::MatcapUv);
+
+        let (data, indices) = importer::import_gltf("assets/dog.glb").import_indexed(Pipeline::Uv);
+        self.dog_static = gpu.load_static_mesh_indexed(&data, &indices, Pipeline::Uv);
 
         let (sphere, sphere_indices) =
             importer::import_gltf("assets/test sphere base.glb").import_indexed(Pipeline::ColorLit);
@@ -110,18 +124,26 @@ impl Game {
     }
 
     fn draw_matcaps(&self, state: &mut impl Draw3dContext) {
+        state.set_texture(self.dog_tex);
+
         let max = self.matcaps.len() as f32;
         let offset = -(max / 2.0);
         let distance = 2.5;
         let rotation = Mat4::from_rotation_y(self.t * 0.5);
-        for (i, tex_id) in self.matcaps.iter().enumerate() {
-            state.push_matrix(
-                Mat4::from_translation(Vec3::new(offset + distance * i as f32, 0.0, 0.0))
-                    * rotation,
-            );
-            state.set_matcap(*tex_id);
+        for (i, matcap_id) in self.matcaps.iter().enumerate() {
+            let translation = Vec3::new(offset + distance * i as f32, 0.0, 0.0);
+            state.push_matrix(Mat4::from_translation(translation) * rotation);
+            state.set_matcap(*matcap_id);
             state.draw_static_mesh_indexed(self.monkey_index);
+
+            state.push_matrix(
+                Mat4::from_translation(translation + Vec3::new(0.0, 2.0, 0.0)) * rotation,
+            );
+            state.draw_static_mesh_indexed(self.dog_matcap_mesh);
         }
+
+        state.push_matrix(Mat4::IDENTITY);
+        state.draw_static_mesh_indexed(self.dog_static);
     }
 
     fn draw_pbr_test(&self, state: &mut impl Draw3dContext) {

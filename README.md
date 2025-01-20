@@ -34,3 +34,5 @@ Assets:
 https://observablehq.com/d/2c53c7ee9f619740?ui=classic
 https://bratbun.gumroad.com/l/MatcapPack
 https://finestudio.gumroad.com/l/aura
+
+https://sketchfab.com/3d-models/shiba-faef9fe5ace445e7b2989d1c1ece361c
