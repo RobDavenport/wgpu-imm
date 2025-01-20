@@ -1,13 +1,39 @@
-use image::{GenericImageView, ImageReader};
+use image::ImageReader;
 
 pub struct Textures {
     pub bind_group_layout: wgpu::BindGroupLayout,
+    pub matcap_bind_group_layout: wgpu::BindGroupLayout,
     pub textures: Vec<Texture>,
     pub depth_texture: DepthTexture,
     sampler: wgpu::Sampler,
+    matcap_sampler: wgpu::Sampler,
 }
 
 pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescriptor<'static> {
+    &wgpu::BindGroupLayoutDescriptor {
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                count: None,
+            },
+        ],
+        label: Some("texture_bind_group_layout"),
+    }
+}
+
+pub const fn bind_group_layout_desc_matcap() -> &'static wgpu::BindGroupLayoutDescriptor<'static> {
     &wgpu::BindGroupLayoutDescriptor {
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -23,7 +49,7 @@ pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescripto
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
                 visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
         ],
@@ -34,14 +60,18 @@ pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescripto
 impl Textures {
     pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
         let bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc());
+        let matcap_bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc_matcap());
 
         let sampler = device.create_sampler(&sampler_descriptor());
+        let matcap_sampler = device.create_sampler(&matcap_sampler_descriptor());
 
         Self {
             bind_group_layout,
             textures: Vec::new(),
             depth_texture: DepthTexture::create_depth_texture(device, config, "depth_texture"),
             sampler,
+            matcap_sampler,
+            matcap_bind_group_layout
         }
     }
 
@@ -50,6 +80,7 @@ impl Textures {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         path: &str,
+        is_matcap: bool,
     ) -> usize {
         let image = ImageReader::open(path).unwrap().decode().unwrap();
         let image = match image.as_rgba8() {
@@ -76,8 +107,15 @@ impl Textures {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        let (sampler, layout) = if is_matcap {
+            (&self.matcap_sampler, &self.matcap_bind_group_layout)
+        } else {
+            (&self.sampler, &self.bind_group_layout)
+        };
+
+        // TODO: This needs to be created dynamically to handle different textures & matcaps
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.bind_group_layout,
+            layout: &layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -85,7 +123,7 @@ impl Textures {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    resource: wgpu::BindingResource::Sampler(sampler),
                 },
             ],
             label: Some(path),
@@ -128,6 +166,18 @@ pub fn sampler_descriptor() -> wgpu::SamplerDescriptor<'static> {
         address_mode_w: wgpu::AddressMode::Repeat,
         mag_filter: wgpu::FilterMode::Nearest,
         min_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::FilterMode::Nearest,
+        ..Default::default()
+    }
+}
+
+fn matcap_sampler_descriptor() -> wgpu::SamplerDescriptor<'static> {
+    wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Nearest,
         ..Default::default()
     }

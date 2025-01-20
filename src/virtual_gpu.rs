@@ -1,11 +1,11 @@
 use bytemuck::cast_slice;
-use glam::{Mat4, Vec3, Vec4Swizzles};
+use glam::{Mat4, Vec4Swizzles};
 use wgpu::{RenderPipeline, TextureView};
 
 use crate::{
     camera::Camera,
     contexts,
-    environment_map::{EnvironmentMap, ENVIRONMENT_MAP_BIND_GROUP},
+    environment_map::EnvironmentMap,
     frame_buffer::{FrameBuffer, FRAME_BUFFER_BIND_GROUP_INDEX, SCALING_BIND_GROUP_INDEX},
     immediate_renderer::ImmediateRenderer,
     lights::{Light, Lights},
@@ -16,9 +16,9 @@ use crate::{
     virtual_render_pass::{Command, VirtualRenderPass},
 };
 
-pub const CAMERA_BIND_GROUP_INDEX: u32 = 0;
+pub const PER_FRAME_BIND_GROUP_INDEX: u32 = 0;
 pub const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
-pub const LIGHT_BIND_GROUP_INDEX: u32 = 2;
+pub const MATCAP_BIND_GROUP_INDEX: u32 = 2;
 
 pub const VERTEX_BUFFER_INDEX: u32 = 0;
 pub const INSTANCE_BUFFER_INDEX: u32 = 1;
@@ -41,6 +41,8 @@ pub struct VirtualGpu {
 
     pub frame_buffer: FrameBuffer,
     pub environment_map: EnvironmentMap,
+
+    pub per_frame_bind_group: wgpu::BindGroup,
 }
 
 impl VirtualGpu {
@@ -59,19 +61,152 @@ impl VirtualGpu {
         let lights = Lights::new(&device);
         let environment_map = EnvironmentMap::new(&device, &queue);
 
+        let per_frame_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Per Frame Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Views
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Positions
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Projections
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+
+                // Lights
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+
+                // Env Map
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::Cube,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let per_frame_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Per Frame Bind Group"),
+            layout: &per_frame_bind_group_layout,
+            entries: &[
+                // Camera Bindings
+                wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera.buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: camera.views_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: camera.positions_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: camera.projections_buffer.as_entire_binding(),
+                },
+
+
+                // Lights Bindings
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: lights.buffer.as_entire_binding(),
+                },
+
+                // Env Map
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&environment_map.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Sampler(&environment_map.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: environment_map.uniforms_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
-                    &camera.bind_group_layout,
+                    &per_frame_bind_group_layout,
                     &textures.bind_group_layout,
-                    &lights.bind_group_layout,
-                    &environment_map.bind_group_layout,
+                    &textures.matcap_bind_group_layout, //Matcap Layout
                 ],
                 push_constant_ranges: &[],
             });
 
-        textures.load_texture(&device, &queue, "assets/default texture.png");
+        textures.load_texture(&device, &queue, "assets/default texture.png", false);
 
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
@@ -101,6 +236,7 @@ impl VirtualGpu {
             virtual_render_pass: VirtualRenderPass::new(),
             frame_buffer,
             environment_map,
+            per_frame_bind_group,
         }
     }
 
@@ -164,13 +300,7 @@ impl VirtualGpu {
                 bytemuck::bytes_of(&self.camera.get_projection_3d()),
             );
 
-            render_pass.set_bind_group(CAMERA_BIND_GROUP_INDEX, &self.camera.bind_group, &[]);
-            render_pass.set_bind_group(LIGHT_BIND_GROUP_INDEX, &self.lights.bind_group, &[]);
-            render_pass.set_bind_group(
-                ENVIRONMENT_MAP_BIND_GROUP,
-                &self.environment_map.bind_group,
-                &[],
-            );
+            render_pass.set_bind_group(PER_FRAME_BIND_GROUP_INDEX, &self.per_frame_bind_group, &[]);
             self.queue.write_buffer(
                 &self.environment_map.uniforms_buffer,
                 0,
@@ -307,8 +437,8 @@ fn create_render_pipeline(
 }
 
 impl contexts::Init3dContext for VirtualGpu {
-    fn load_texture(&mut self, path: &str) -> usize {
-        self.textures.load_texture(&self.device, &self.queue, path)
+    fn load_texture(&mut self, path: &str, is_matcap: bool) -> usize {
+        self.textures.load_texture(&self.device, &self.queue, path, is_matcap)
     }
 
     fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
@@ -412,5 +542,9 @@ impl contexts::Draw3dContext for VirtualGpu {
         self.virtual_render_pass
             .commands
             .push(Command::SetTexture(tex_id));
+    }
+
+    fn set_matcap(&mut self, matcap_id: usize) {
+        self.virtual_render_pass.commands.push(Command::SetMatcap(matcap_id))
     }
 }

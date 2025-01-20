@@ -1,13 +1,11 @@
 use glam::Vec4;
 use image::ImageReader;
 
-pub const ENVIRONMENT_MAP_BIND_GROUP: u32 = 3;
-
 pub struct EnvironmentMap {
-    pub bind_group: wgpu::BindGroup,
-    pub bind_group_layout: wgpu::BindGroupLayout,
     pub uniforms_buffer: wgpu::Buffer,
     pub uniforms: EnvironmentUniforms,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
 }
 
 pub struct EnvironmentUniforms {
@@ -85,27 +83,6 @@ impl EnvironmentMap {
             mapped_at_creation: false,
         });
 
-        let bind_group_layout = device.create_bind_group_layout(bind_group_layout_desc());
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: uniforms_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("Environment Map Bind Group"),
-        });
-
         let uniforms = EnvironmentUniforms::new();
 
         for (index, path) in IMAGES.iter().enumerate() {
@@ -140,44 +117,11 @@ impl EnvironmentMap {
         }
 
         Self {
-            bind_group,
-            bind_group_layout,
             uniforms_buffer,
             uniforms,
+            view,
+            sampler,
         }
     }
 }
 
-pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescriptor<'static> {
-    &wgpu::BindGroupLayoutDescriptor {
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::Cube,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-        label: Some("environment map bind group layout"),
-    }
-}

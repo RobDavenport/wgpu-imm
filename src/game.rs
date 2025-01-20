@@ -48,8 +48,8 @@ impl Game {
     }
 
     pub fn init(&mut self, gpu: &mut impl Init3dContext) {
-        self.tex_index = gpu.load_texture("assets/Fox.png");
-        self.tex_grid = gpu.load_texture("assets/color grid 128x128.png");
+        self.tex_index = gpu.load_texture("assets/Fox.png", false);
+        self.tex_grid = gpu.load_texture("assets/color grid 128x128.png", false);
         let (vertices, indices) =
             importer::import_gltf("assets/BoxVertexColors.glb").import_indexed(Pipeline::Color);
 
@@ -88,7 +88,7 @@ impl Game {
         for file in fs::read_dir("assets/matcaps").unwrap() {
             let file = file.unwrap();
             println!("Loading matcap: {:?}", file.file_name());
-            let id = gpu.load_texture(file.path().to_str().unwrap());
+            let id = gpu.load_texture(file.path().to_str().unwrap(), true);
             self.matcaps.push(id);
         }
 
@@ -119,7 +119,7 @@ impl Game {
                 Mat4::from_translation(Vec3::new(offset + distance * i as f32, 0.0, 0.0))
                     * rotation,
             );
-            state.set_texture(*tex_id);
+            state.set_matcap(*tex_id);
             state.draw_static_mesh_indexed(self.monkey_index);
         }
     }

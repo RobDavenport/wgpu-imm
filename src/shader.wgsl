@@ -5,7 +5,8 @@ const INV_PI = 1.0 / PI;
 const MAX_SHININESS = 2048.0;
 const LIGHT_FALLOFF = 2.0;
 
-// Uniforms
+// -- Per Frame Bindings --
+// Camera
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
@@ -25,23 +26,31 @@ var<storage> positions: array<vec4<f32>>;
 @group(0) @binding(3)
 var<storage> projections: array<mat4x4<f32>>;
 
+// Light Bindings
+@group(0) @binding(4)
+var<uniform> lights: array<Light, MAX_LIGHTS>;
+
+// Environent Map Bindings
+@group(0) @binding(5)
+var t_env: texture_cube<f32>;
+@group(0) @binding(6)
+var s_env: sampler;
+@group(0) @binding(7)
+var<uniform> env_color_strength: vec4<f32>;
+// -- End Per Frame Bindings --
+
 // Texture Bindings
 @group(1) @binding(0)
 var t_albedo: texture_2d<f32>;
 @group(1) @binding(1)
 var s_albedo: sampler;
 
-// Light Bindings
+// Matcaps
 @group(2) @binding(0)
-var<uniform> lights: array<Light, MAX_LIGHTS>;
+var t_matcap: texture_2d<f32>;
 
-// Environent Map Bindings
-@group(3) @binding(0)
-var t_env: texture_cube<f32>;
-@group(3) @binding(1)
-var s_env: sampler;
-@group(3) @binding(2)
-var<uniform> env_color_strength: vec4<f32>;
+@group(2) @binding(1)
+var s_matcap: sampler;
 
 struct Light {
     color_max_angle: vec4<f32>,
@@ -649,7 +658,7 @@ fn fs_matcap(in: VertexMatcapOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
     let uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_albedo, s_env, uv).rgb;
+    let matcap_texel = textureSample(t_matcap, s_matcap, uv).rgb;
     return vec4<f32>(matcap_texel, 1.0);
 }
 
@@ -694,7 +703,7 @@ fn fs_matcap_color(in: VertexMatcapColorOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
     let matcap_uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_albedo, s_env, matcap_uv).rgb;
+    let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
     return vec4<f32>(matcap_texel * in.color, 1.0);
 }
 
@@ -739,7 +748,7 @@ fn fs_matcap_uv(in: VertexMatcapUvOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
     let matcap_uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_albedo, s_env, matcap_uv).rgb;
+    let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
     return vec4<f32>(matcap_texel * texel, 1.0);
 }
@@ -788,7 +797,7 @@ fn fs_matcap_color_uv(in: VertexMatcapColorUvOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
     let matcap_uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_albedo, s_env, matcap_uv).rgb;
+    let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
 
     return vec4<f32>(matcap_texel * texel * in.color, 1.0);
