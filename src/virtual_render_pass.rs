@@ -1,3 +1,5 @@
+use wgpu::ShaderStages;
+
 use crate::{
     pipeline::Pipeline,
     virtual_gpu::{
@@ -16,9 +18,9 @@ pub struct VirtualRenderPass {
 
 pub enum Command {
     SetPipeline(Pipeline),
-    Draw(u32),               //Vertex Count
-    SetTexture(usize),       // TextureId
-    SetMatcap(usize, usize), // Matcap Id, Index
+    Draw(u32),                      //Vertex Count
+    SetTexture(usize),              // TextureId
+    SetMatcap(usize, usize, usize), // Matcap Id, Layer Index, Blend Mode
     SetModelMatrix,
     DrawStaticMesh(usize),        // Static Mesh ID
     DrawStaticMeshIndexed(usize), // Static Mesh Indexed Id
@@ -48,11 +50,13 @@ impl VirtualRenderPass {
         let mut current_model_matrix = 0;
 
         let mut matcap_indices = [0; 4];
+        let mut matcap_blend_modes = [0u8; 4];
 
         for command in self.commands.iter() {
             match command {
                 Command::SetPipeline(pipeline) => {
                     rp.set_pipeline(&gpu.render_pipelines[pipeline.get_shader()]);
+                    rp.set_push_constants(ShaderStages::FRAGMENT, 0, &matcap_blend_modes);
                     current_vertex_size = pipeline.get_vertex_size();
                 }
                 Command::Draw(vertex_count) => {
@@ -70,8 +74,9 @@ impl VirtualRenderPass {
                     let texture = &gpu.textures.textures[*tex_index];
                     rp.set_bind_group(TEXTURE_BIND_GROUP_INDEX, &texture.bind_group, &[]);
                 }
-                Command::SetMatcap(matcap_index, layer_index) => {
+                Command::SetMatcap(matcap_index, layer_index, blend_mode) => {
                     matcap_indices[*layer_index] = *matcap_index;
+                    matcap_blend_modes[*layer_index] = *blend_mode as u8;
                     let layout = &gpu.textures.matcap_bind_group_layout;
                     let bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: None,
@@ -80,7 +85,7 @@ impl VirtualRenderPass {
                             wgpu::BindGroupEntry {
                                 binding: 0,
                                 resource: wgpu::BindingResource::TextureView(
-                                    &gpu.textures.textures[matcap_indices[0]].view,
+                                    &gpu.textures.matcaps[matcap_indices[0]].view,
                                 ),
                             },
                             wgpu::BindGroupEntry {
@@ -92,19 +97,19 @@ impl VirtualRenderPass {
                             wgpu::BindGroupEntry {
                                 binding: 2,
                                 resource: wgpu::BindingResource::TextureView(
-                                    &gpu.textures.textures[matcap_indices[1]].view,
+                                    &gpu.textures.matcaps[matcap_indices[1]].view,
                                 ),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 3,
                                 resource: wgpu::BindingResource::TextureView(
-                                    &gpu.textures.textures[matcap_indices[2]].view,
+                                    &gpu.textures.matcaps[matcap_indices[2]].view,
                                 ),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 4,
                                 resource: wgpu::BindingResource::TextureView(
-                                    &gpu.textures.textures[matcap_indices[3]].view,
+                                    &gpu.textures.matcaps[matcap_indices[3]].view,
                                 ),
                             },
                         ],
@@ -117,6 +122,7 @@ impl VirtualRenderPass {
                 Command::DrawStaticMesh(index) => {
                     let mesh = &gpu.preloaded_renderer.meshes[*index];
                     rp.set_pipeline(&gpu.render_pipelines[mesh.pipeline.get_shader()]);
+                    rp.set_push_constants(ShaderStages::FRAGMENT, 0, &matcap_blend_modes);
                     rp.set_vertex_buffer(VERTEX_BUFFER_INDEX, mesh.vertex_buffer.slice(..));
                     rp.draw(
                         0..mesh.vertex_count,
@@ -126,6 +132,7 @@ impl VirtualRenderPass {
                 Command::DrawStaticMeshIndexed(index) => {
                     let mesh = &gpu.preloaded_renderer.indexed_meshes[*index];
                     rp.set_pipeline(&gpu.render_pipelines[mesh.pipeline.get_shader()]);
+                    rp.set_push_constants(ShaderStages::FRAGMENT, 0, &matcap_blend_modes);
                     rp.set_vertex_buffer(VERTEX_BUFFER_INDEX, mesh.vertex_buffer.slice(..));
                     rp.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                     rp.draw_indexed(

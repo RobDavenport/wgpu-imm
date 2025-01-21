@@ -4,9 +4,14 @@ pub struct Textures {
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub matcap_bind_group_layout: wgpu::BindGroupLayout,
     pub textures: Vec<Texture>,
+    pub matcaps: Vec<Matcap>,
     pub depth_texture: DepthTexture,
     sampler: wgpu::Sampler,
     pub matcap_sampler: wgpu::Sampler,
+}
+
+pub struct Matcap {
+    pub view: wgpu::TextureView,
 }
 
 pub const fn bind_group_layout_desc() -> &'static wgpu::BindGroupLayoutDescriptor<'static> {
@@ -103,6 +108,7 @@ impl Textures {
             sampler,
             matcap_sampler,
             matcap_bind_group_layout,
+            matcaps: Vec::new(),
         }
     }
 
@@ -138,28 +144,6 @@ impl Textures {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let (sampler, layout) = if is_matcap {
-            (&self.matcap_sampler, &self.matcap_bind_group_layout)
-        } else {
-            (&self.sampler, &self.bind_group_layout)
-        };
-
-        panic!("Move the following code into the if/else above!");
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(sampler),
-                },
-            ],
-            label: Some(path),
-        });
-
         queue.write_texture(
             // Tells wgpu where to copy the pixel data
             wgpu::ImageCopyTexture {
@@ -179,16 +163,38 @@ impl Textures {
             size,
         );
 
-        let texture = Texture { view, bind_group };
+        // It's a matcap
+        if is_matcap {
+            let matcap = Matcap { view };
+            self.matcaps.push(matcap);
+            self.matcaps.len() - 1
+        } else {
+            // It's a texture
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+                label: Some(path),
+            });
 
-        self.textures.push(texture);
-        self.textures.len() - 1
+            let texture = Texture { bind_group };
+
+            self.textures.push(texture);
+            self.textures.len() - 1
+        }
     }
 }
 
 pub struct Texture {
     pub bind_group: wgpu::BindGroup,
-    pub view: wgpu::TextureView,
 }
 
 pub fn sampler_descriptor() -> wgpu::SamplerDescriptor<'static> {

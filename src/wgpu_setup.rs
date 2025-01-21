@@ -4,6 +4,8 @@ use wgpu::{
 };
 use winit::dpi::PhysicalSize;
 
+use crate::PUSH_CONSTANT_SIZE;
+
 pub fn create_surface_config(
     size: PhysicalSize<u32>,
     capabilities: SurfaceCapabilities,
@@ -28,11 +30,14 @@ pub fn create_surface_config(
 }
 
 pub fn create_device(adapter: &Adapter) -> (Device, Queue) {
+    let mut limits = wgpu::Limits::default();
+    limits.max_push_constant_size = PUSH_CONSTANT_SIZE;
+
     adapter
         .request_device(
             &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                required_features: wgpu::Features::PUSH_CONSTANTS,
+                required_limits: limits,
                 label: None,
                 memory_hints: MemoryHints::default(),
             },

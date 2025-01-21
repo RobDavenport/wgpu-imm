@@ -1,6 +1,6 @@
-use wgpu::TextureViewDescriptor;
+use wgpu::{PushConstantRange, ShaderStages, TextureViewDescriptor};
 
-use crate::textures;
+use crate::{textures, PUSH_CONSTANT_SIZE};
 
 pub const SCALING_BIND_GROUP_INDEX: u32 = 0;
 pub const FRAME_BUFFER_BIND_GROUP_INDEX: u32 = 1;
@@ -107,7 +107,10 @@ impl FrameBuffer {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Frame Buffer Layout"),
             bind_group_layouts: &[&scaling_bind_group_layout, &texture_bind_group_layout],
-            push_constant_ranges: &[],
+            push_constant_ranges: &[PushConstantRange {
+                stages: ShaderStages::FRAGMENT,
+                range: 0..PUSH_CONSTANT_SIZE,
+            }],
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {

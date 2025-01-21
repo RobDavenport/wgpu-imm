@@ -61,6 +61,12 @@ var t_matcap3: texture_2d<f32>;
 @group(2) @binding(4)
 var t_matcap4: texture_2d<f32>;
 
+struct PushConstants {
+    blend_modes: u32,
+}
+
+var<push_constant> push_constants: PushConstants;
+
 struct Light {
     color_max_angle: vec4<f32>,
     position_range: vec4<f32>,
@@ -666,9 +672,9 @@ fn vs_matcap(
 fn fs_matcap(in: VertexMatcapOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_matcap, s_matcap, uv).rgb;
-    return vec4<f32>(matcap_texel, 1.0);
+    // TODO: Fix this so the first one is always replace
+    let matcap = get_matcaps(vec3<f32>(0.0), view, normal);
+    return vec4<f32>(matcap, 1.0);
 }
 
 struct VertexMatcapColorIn {
@@ -711,9 +717,8 @@ fn vs_matcap_color(
 fn fs_matcap_color(in: VertexMatcapColorOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let matcap_uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
-    return vec4<f32>(matcap_texel * in.color, 1.0);
+    let color = get_matcaps(in.color, view, normal);
+    return vec4<f32>(color, 1.0);
 }
 
 struct VertexMatcapUvIn {
@@ -756,11 +761,10 @@ fn vs_matcap_uv(
 fn fs_matcap_uv(in: VertexMatcapUvOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let matcap_uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
-    let matcap_texel2 = textureSample(t_matcap2, s_matcap, matcap_uv).rgb;
-    return vec4<f32>(matcap_texel * texel * matcap_texel2, 1.0);
+    let color = get_matcaps(texel, view, normal);
+
+    return vec4<f32>(color, 1.0);
 }
 
 struct VertexMatcapColorUvIn {
@@ -806,9 +810,103 @@ fn vs_matcap_color_uv(
 fn fs_matcap_color_uv(in: VertexMatcapColorUvOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let matcap_uv = matcap_uv(view, normal);
-    let matcap_texel = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
     let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+    let color = get_matcaps(texel * in.color, view, normal);
 
-    return vec4<f32>(matcap_texel * texel * in.color, 1.0);
+    return vec4<f32>(color, 1.0);
+}
+
+fn get_matcaps(start_color: vec3<f32>, view: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let matcap_uv = matcap_uv(view, normal);
+
+    var texels: array<vec3<f32>, 4>;
+    texels[0] = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
+    texels[1] = textureSample(t_matcap2, s_matcap, matcap_uv).rgb;
+    texels[2] = textureSample(t_matcap3, s_matcap, matcap_uv).rgb;
+    texels[3] = textureSample(t_matcap4, s_matcap, matcap_uv).rgb;
+
+    return blend_layers(start_color, &texels);
+}
+
+fn blend_layers(start_color: vec3<f32>, texels: ptr<function, array<vec3<f32>, 4>>) -> vec3<f32> {
+    var out = start_color;        
+
+    for (var i = 0u; i < 4; i++) {
+        let texel = (*texels)[i];
+        let byte = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
+        switch byte {
+            case 1u: {
+                out = texel;
+            }
+            case 2u: {
+                out = blend_add(out, texel);
+            }
+            case 3u: {
+                out = blend_screen(out, texel);
+            }
+            case 4u: {
+                out = blend_color_dodge(out, texel);
+            }
+            case 5u: {
+                out = blend_subtract(out, texel);
+            }
+            case 6u: {
+                out = blend_multiply(out, texel);
+            }
+            case 7u: {
+                out = blend_color_burn(out, texel);
+            }
+            case 8u: {
+                out = blend_overlay(out, texel);
+            }
+            default: {
+                return out;
+            }
+        }
+    }
+
+    return out;
+}
+
+// // Normal (Replace): Simply uses the blend color
+// fn blend_normal(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+//     return blend;
+// }
+
+// Add: base + blend
+fn blend_add(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return clamp(base + blend, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// Screen: 1 - (1 - base) * (1 - blend)
+fn blend_screen(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return 1.0 - (1.0 - base) * (1.0 - blend);
+}
+
+// Color Dodge: base / (1 - blend)
+fn blend_color_dodge(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return clamp(base / (1.0 - blend), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// Subtract: base - blend
+fn blend_subtract(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return clamp(base - blend, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// Multiply: base * blend
+fn blend_multiply(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return base * blend;
+}
+
+// Color Burn: 1 - ((1 - base) / blend)
+fn blend_color_burn(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return clamp(1.0 - ((1.0 - base) / blend), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// Overlay: Combines Multiply and Screen based on base
+fn blend_overlay(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    let multiplier = 2.0 * base * blend;
+    let screen = 1.0 - 2.0 * (1.0 - base) * (1.0 - blend);
+    let mask = step(vec3<f32>(0.5), base); // Creates a vec3 mask based on base
+    return mix(multiplier, screen, mask);
 }

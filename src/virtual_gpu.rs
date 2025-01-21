@@ -1,6 +1,6 @@
 use bytemuck::cast_slice;
 use glam::{Mat4, Vec4Swizzles};
-use wgpu::{RenderPipeline, TextureView};
+use wgpu::{PushConstantRange, RenderPipeline, ShaderStages, TextureView};
 
 use crate::{
     camera::Camera,
@@ -14,6 +14,7 @@ use crate::{
     quad_renderer::QuadRenderer,
     textures::{self, Textures},
     virtual_render_pass::{Command, VirtualRenderPass},
+    PUSH_CONSTANT_SIZE,
 };
 
 pub const PER_FRAME_BIND_GROUP_INDEX: u32 = 0;
@@ -199,7 +200,10 @@ impl VirtualGpu {
                     &textures.bind_group_layout,
                     &textures.matcap_bind_group_layout, //Matcap Layout
                 ],
-                push_constant_ranges: &[],
+                push_constant_ranges: &[PushConstantRange {
+                    stages: ShaderStages::FRAGMENT,
+                    range: 0..PUSH_CONSTANT_SIZE,
+                }],
             });
 
         textures.load_texture(&device, &queue, "assets/default texture.png", false);
@@ -541,9 +545,11 @@ impl contexts::Draw3dContext for VirtualGpu {
             .push(Command::SetTexture(tex_id));
     }
 
-    fn set_matcap(&mut self, matcap_id: usize, layer_index: usize) {
-        self.virtual_render_pass
-            .commands
-            .push(Command::SetMatcap(matcap_id, layer_index))
+    fn set_matcap(&mut self, matcap_id: usize, layer_index: usize, blend_mode: usize) {
+        self.virtual_render_pass.commands.push(Command::SetMatcap(
+            matcap_id,
+            layer_index,
+            blend_mode,
+        ))
     }
 }

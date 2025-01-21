@@ -24,6 +24,8 @@ mod wgpu_setup;
 
 use app::StateApplication;
 
+pub const PUSH_CONSTANT_SIZE: u32 = 128;
+
 fn main() {
     env_logger::init();
 
