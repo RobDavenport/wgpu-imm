@@ -218,8 +218,5 @@ impl State {
         self.virtual_gpu.camera.eye += up * self.camera_delta.y * DT * CAMERA_SPEED;
 
         self.virtual_gpu.camera.yaw -= self.camera_yaw_delta * DT * CAMERA_ROT_SPEED;
-
-        self.virtual_gpu.push_matrix(Mat4::IDENTITY);
-        self.virtual_gpu.set_texture(0);
     }
 }

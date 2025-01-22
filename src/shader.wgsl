@@ -1,5 +1,6 @@
 // Consts
 const MAX_LIGHTS = 4;
+const MAX_TEXTURES: u32 = 4;
 const PI = radians(180.0);
 const INV_PI = 1.0 / PI;
 const MAX_SHININESS = 2048.0;
@@ -37,32 +38,31 @@ var t_env: texture_cube<f32>;
 var s_env: sampler;
 @group(0) @binding(7)
 var<uniform> env_color_strength: vec4<f32>;
+
+@group(0) @binding(8)
+var texture_sampler: sampler;
+
+@group(0) @binding(9)
+var matcap_sampler: sampler;
+
 // -- End Per Frame Bindings --
-
-// Texture Bindings
+// Textures
 @group(1) @binding(0)
-var t_albedo: texture_2d<f32>;
+var texture1: texture_2d<f32>;
+
 @group(1) @binding(1)
-var s_albedo: sampler;
+var texture2: texture_2d<f32>;
 
-// Matcaps
-@group(2) @binding(0)
-var t_matcap: texture_2d<f32>;
+@group(1) @binding(2)
+var texture3: texture_2d<f32>;
 
-@group(2) @binding(1)
-var s_matcap: sampler;
-
-@group(2) @binding(2)
-var t_matcap2: texture_2d<f32>;
-
-@group(2) @binding(3)
-var t_matcap3: texture_2d<f32>;
-
-@group(2) @binding(4)
-var t_matcap4: texture_2d<f32>;
+@group(1) @binding(3)
+var texture4: texture_2d<f32>;
+// End Textures
 
 struct PushConstants {
     blend_modes: u32,
+    is_matcap: u32,
 }
 
 var<push_constant> push_constants: PushConstants;
@@ -163,7 +163,7 @@ fn vs_uv(
 
 @fragment
 fn fs_uv(in: VertexUvOut) -> @location(0) vec4<f32> {
-    return textureSample(t_albedo, s_albedo, in.uvs);
+    return textureSample(texture1, texture_sampler, in.uvs);
 }
 
 // Vertex Color + UVs
@@ -199,7 +199,7 @@ fn vs_color_uv(
 
 @fragment
 fn fs_color_uv(in: VertexColorUvOut) -> @location(0) vec4<f32> {
-    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+    let texel = textureSample(texture1, texture_sampler, in.uvs).rgb;
     return vec4<f32>(in.color * texel, 1.0);
 }
 
@@ -311,7 +311,7 @@ fn vs_uv_lit(
 
 @fragment
 fn fs_uv_lit(in: VertexUvLitOut) -> @location(0) vec4<f32> {
-    let frag_color = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+    let frag_color = textureSample(texture1, texture_sampler, in.uvs).rgb;
 
     let output_color = calculate_lighting(
         frag_color,
@@ -374,7 +374,7 @@ fn vs_color_uv_lit(
 
 @fragment
 fn fs_color_uv_lit(in: VertexColorUvLitOut) -> @location(0) vec4<f32> {
-    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
+    let texel = textureSample(texture1, texture_sampler, in.uvs).rgb;
     let frag_color = in.color * texel.rgb;
 
     let output_color = calculate_lighting(
@@ -672,9 +672,8 @@ fn vs_matcap(
 fn fs_matcap(in: VertexMatcapOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    // TODO: Fix this so the first one is always replace
-    let matcap = get_matcaps(vec3<f32>(0.0), view, normal);
-    return vec4<f32>(matcap, 1.0);
+    let color = get_blended_matcaps(view, normal);
+    return vec4<f32>(color, 1.0);
 }
 
 struct VertexMatcapColorIn {
@@ -717,8 +716,8 @@ fn vs_matcap_color(
 fn fs_matcap_color(in: VertexMatcapColorOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let color = get_matcaps(in.color, view, normal);
-    return vec4<f32>(color, 1.0);
+    let color = get_color_blended_matcaps(in.color, view, normal);
+    return vec4<f32>(in.color * color, 1.0);
 }
 
 struct VertexMatcapUvIn {
@@ -761,8 +760,7 @@ fn vs_matcap_uv(
 fn fs_matcap_uv(in: VertexMatcapUvOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
-    let color = get_matcaps(texel, view, normal);
+    let color = get_blended_both(in.uvs, view, normal);
 
     return vec4<f32>(color, 1.0);
 }
@@ -810,62 +808,189 @@ fn vs_matcap_color_uv(
 fn fs_matcap_color_uv(in: VertexMatcapColorUvOut) -> @location(0) vec4<f32> {
     let normal = normalize(in.normals);
     let view = normalize(-in.view_pos);
-    let texel = textureSample(t_albedo, s_albedo, in.uvs).rgb;
-    let color = get_matcaps(texel * in.color, view, normal);
+    let color = get_blended_both(in.uvs, view, normal);
 
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(in.color * color, 1.0);
 }
 
-fn get_matcaps(start_color: vec3<f32>, view: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+fn get_blended_textures(uvs: vec2<f32>) -> vec3<f32> {
+    var out = textureSample(texture1, texture_sampler, uvs).rgb;
+
+    for (var i = 1u; i < MAX_TEXTURES; i++) {
+        let blend_mode = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
+        if blend_mode == 0 {
+            continue;
+        }
+        if (push_constants.is_matcap & (1u << u32(i))) != 0u {
+            continue;
+        }
+
+        let texel = sample_texture_array(i, texture_sampler, uvs);
+        out = blend_layers(out, texel, blend_mode);
+    }
+    return out;
+}
+
+fn get_color_blended_textures(color: vec3<f32>, uvs: vec2<f32>) -> vec3<f32> {
+    var out = color;
+
+    for (var i = 0u; i < MAX_TEXTURES; i++) {
+        let blend_mode = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
+        if blend_mode == 0 {
+            continue;
+        }
+        if (push_constants.is_matcap & (1u << u32(i))) != 0u {
+            continue;
+        }
+
+        let texel = sample_texture_array(i, texture_sampler, uvs);
+        out = blend_layers(out, texel, blend_mode);
+    }
+    return out;
+}
+
+fn get_blended_matcaps(view: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let matcap_uvs = matcap_uv(view, normal);
+    var out = textureSample(texture1, matcap_sampler, matcap_uvs).rgb;
+
+    for (var i = 1u; i < MAX_TEXTURES; i++) {
+        let blend_mode = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
+        if blend_mode == 0 {
+            continue;
+        }
+        if (push_constants.is_matcap & (1u << u32(i))) == 0u {
+            continue;
+        }
+
+        let texel = sample_texture_array(i, matcap_sampler, matcap_uvs);
+        out = blend_layers(out, texel, blend_mode);
+    }
+    return out;
+}
+
+fn get_color_blended_matcaps(color: vec3<f32>, view: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let matcap_uvs = matcap_uv(view, normal);
+
+    var out = color;
+
+    for (var i = 0u; i < MAX_TEXTURES; i++) {
+        let blend_mode = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
+        if blend_mode == 0 {
+            continue;
+        }
+        if (push_constants.is_matcap & (1u << u32(i))) == 0u {
+            continue;
+        }
+
+        let texel = sample_texture_array(i, matcap_sampler, matcap_uvs);
+        out = blend_layers(out, texel, blend_mode);
+    }
+    return out;
+}
+
+fn get_blended_both(uvs: vec2<f32>, view: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     let matcap_uv = matcap_uv(view, normal);
 
-    var texels: array<vec3<f32>, 4>;
-    texels[0] = textureSample(t_matcap, s_matcap, matcap_uv).rgb;
-    texels[1] = textureSample(t_matcap2, s_matcap, matcap_uv).rgb;
-    texels[2] = textureSample(t_matcap3, s_matcap, matcap_uv).rgb;
-    texels[3] = textureSample(t_matcap4, s_matcap, matcap_uv).rgb;
+    var out: vec3<f32>;
 
-    return blend_layers(start_color, &texels);
-}
+    if (push_constants.is_matcap & (1u << u32(0))) != 0u {
+        out = textureSample(texture1, matcap_sampler, matcap_uv).rgb;
+    } else {
+        out = textureSample(texture1, texture_sampler, uvs).rgb;
+    }
+    
+    for (var i = 1u; i < MAX_TEXTURES; i++) {
+        let blend_mode = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
 
-fn blend_layers(start_color: vec3<f32>, texels: ptr<function, array<vec3<f32>, 4>>) -> vec3<f32> {
-    var out = start_color;        
-
-    for (var i = 0u; i < 4; i++) {
-        let texel = (*texels)[i];
-        let byte = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
-        switch byte {
-            case 1u: {
-                out = texel;
-            }
-            case 2u: {
-                out = blend_add(out, texel);
-            }
-            case 3u: {
-                out = blend_screen(out, texel);
-            }
-            case 4u: {
-                out = blend_color_dodge(out, texel);
-            }
-            case 5u: {
-                out = blend_subtract(out, texel);
-            }
-            case 6u: {
-                out = blend_multiply(out, texel);
-            }
-            case 7u: {
-                out = blend_color_burn(out, texel);
-            }
-            case 8u: {
-                out = blend_overlay(out, texel);
-            }
-            default: {
-                return out;
-            }
+        if blend_mode == 0 {
+            continue;
         }
+
+        var texel: vec3<f32>;
+        if (push_constants.is_matcap & (1u << u32(i))) != 0u {
+            texel = sample_texture_array(i, matcap_sampler, matcap_uv);
+        } else {
+            texel = sample_texture_array(i, texture_sampler, uvs);
+        }
+
+        out = blend_layers(out, texel, blend_mode);
     }
 
     return out;
+}
+
+fn get_color_blended_both(color: vec3<f32>, uvs: vec2<f32>, view: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let matcap_uv = matcap_uv(view, normal);
+
+    var out = color;
+
+    for (var i = 0u; i < MAX_TEXTURES; i++) {
+        let blend_mode = (push_constants.blend_modes >> (i * 8u)) & 0xFF;
+
+        if blend_mode == 0 {
+            break;
+        }
+
+        var texel: vec3<f32>;
+        if (push_constants.is_matcap & (1u << u32(i))) != 0u {
+            texel = sample_texture_array(i, matcap_sampler, matcap_uv);
+        } else {
+            texel = sample_texture_array(i, texture_sampler, uvs);
+        }
+
+        out = blend_layers(out, texel, blend_mode);
+    }
+
+    return out;
+}
+
+fn sample_texture_array(index: u32, sam: sampler, uvs: vec2<f32>) -> vec3<f32> {
+    switch index {
+        case 1u: {
+            return textureSample(texture2, sam, uvs).rgb;
+        }
+        case 2u: {
+            return textureSample(texture3, sam, uvs).rgb;
+        }
+        case 3u: {
+            return textureSample(texture4, sam, uvs).rgb;
+        }
+        default: {
+            return textureSample(texture1, sam, uvs).rgb;
+        }
+    }
+}
+
+fn blend_layers(bottom: vec3<f32>, top: vec3<f32>, blend: u32) -> vec3<f32> {
+    switch blend {
+        case 1u: {
+            return top;
+        }
+        case 2u: {
+            return blend_add(bottom, top);
+        }
+        case 3u: {
+            return blend_screen(bottom, top);
+        }
+        case 4u: {
+            return blend_color_dodge(bottom, top);
+        }
+        case 5u: {
+            return blend_subtract(bottom, top);
+        }
+        case 6u: {
+            return blend_multiply(bottom, top);
+        }
+        case 7u: {
+            return blend_color_burn(bottom, top);
+        }
+        case 8u: {
+            return blend_overlay(bottom, top);
+        }
+        default: {
+            return bottom;
+        }
+    }
 }
 
 // // Normal (Replace): Simply uses the blend color

@@ -19,7 +19,6 @@ use crate::{
 
 pub const PER_FRAME_BIND_GROUP_INDEX: u32 = 0;
 pub const TEXTURE_BIND_GROUP_INDEX: u32 = 1;
-pub const MATCAP_BIND_GROUP_INDEX: u32 = 2;
 
 pub const VERTEX_BUFFER_INDEX: u32 = 0;
 pub const INSTANCE_BUFFER_INDEX: u32 = 1;
@@ -147,6 +146,18 @@ impl VirtualGpu {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 9,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
                 ],
             });
 
@@ -189,24 +200,29 @@ impl VirtualGpu {
                     binding: 7,
                     resource: environment_map.uniforms_buffer.as_entire_binding(),
                 },
+                // Texture Samplers
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::Sampler(&textures.texture_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::Sampler(&textures.matcap_sampler),
+                },
             ],
         });
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &per_frame_bind_group_layout,
-                    &textures.bind_group_layout,
-                    &textures.matcap_bind_group_layout, //Matcap Layout
-                ],
+                bind_group_layouts: &[&per_frame_bind_group_layout, &textures.bind_group_layout],
                 push_constant_ranges: &[PushConstantRange {
                     stages: ShaderStages::FRAGMENT,
                     range: 0..PUSH_CONSTANT_SIZE,
                 }],
             });
 
-        textures.load_texture(&device, &queue, "assets/default texture.png", false);
+        textures.load_texture(&device, &queue, "assets/default texture.png");
 
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
@@ -437,9 +453,8 @@ fn create_render_pipeline(
 }
 
 impl contexts::Init3dContext for VirtualGpu {
-    fn load_texture(&mut self, path: &str, is_matcap: bool) -> usize {
-        self.textures
-            .load_texture(&self.device, &self.queue, path, is_matcap)
+    fn load_texture(&mut self, path: &str) -> usize {
+        self.textures.load_texture(&self.device, &self.queue, path)
     }
 
     fn load_static_mesh(&mut self, data: &[f32], pipeline: Pipeline) -> usize {
@@ -539,10 +554,10 @@ impl contexts::Draw3dContext for VirtualGpu {
             .push(Command::DrawSprite(index));
     }
 
-    fn set_texture(&mut self, tex_id: usize) {
+    fn set_texture(&mut self, tex_id: usize, layer_id: usize, blend_mode: usize) {
         self.virtual_render_pass
             .commands
-            .push(Command::SetTexture(tex_id));
+            .push(Command::SetTexture(tex_id, layer_id, blend_mode));
     }
 
     fn set_matcap(&mut self, matcap_id: usize, layer_index: usize, blend_mode: usize) {

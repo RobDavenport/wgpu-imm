@@ -59,10 +59,10 @@ impl Game {
     }
 
     pub fn init(&mut self, gpu: &mut impl Init3dContext) {
-        self.fox_tex = gpu.load_texture("assets/Fox.png", false);
-        self.dog_tex = gpu.load_texture("assets/dog tex.png", false);
-        self.tex_grid = gpu.load_texture("assets/color grid 128x128.png", false);
-        self.ship_tex = gpu.load_texture("assets/ship tex.png", false);
+        self.fox_tex = gpu.load_texture("assets/Fox.png");
+        self.dog_tex = gpu.load_texture("assets/dog tex.png");
+        self.tex_grid = gpu.load_texture("assets/color grid 128x128.png");
+        self.ship_tex = gpu.load_texture("assets/ship tex.png");
 
         let (vertices, indices) =
             importer::import_gltf("assets/BoxVertexColors.glb").import_indexed(Pipeline::Color);
@@ -113,7 +113,7 @@ impl Game {
         for file in fs::read_dir("assets/matcaps").unwrap() {
             let file = file.unwrap();
             println!("Loading matcap: {:?}", file.file_name());
-            let id = gpu.load_texture(file.path().to_str().unwrap(), true);
+            let id = gpu.load_texture(file.path().to_str().unwrap());
             self.matcaps.push(id);
         }
 
@@ -146,25 +146,45 @@ impl Game {
             let translation = Vec3::new(offset + distance * i as f32, 0.0, 0.0);
             state.push_matrix(Mat4::from_translation(translation) * rotation);
             state.set_matcap(*matcap_id, 0, 8);
-            state.set_matcap((*matcap_id * 2) % self.matcaps.len(), 1, 8);
-            state.set_matcap((*matcap_id * 3) % self.matcaps.len(), 2, 8);
-            state.set_matcap((*matcap_id * 4) % self.matcaps.len(), 3, 8);
+            state.set_matcap(
+                (*matcap_id * 2) % self.matcaps.len() + self.matcaps[0],
+                1,
+                2,
+            );
+            state.set_matcap(
+                (*matcap_id * 3) % self.matcaps.len() + self.matcaps[0],
+                2,
+                6,
+            );
+            state.set_matcap(
+                (*matcap_id * 4) % self.matcaps.len() + self.matcaps[0],
+                3,
+                8,
+            );
             state.draw_static_mesh_indexed(self.monkey_index);
 
             state.push_matrix(
                 Mat4::from_translation(translation + Vec3::new(0.0, 2.0, 0.0)) * rotation,
             );
-            state.set_texture(self.dog_tex);
+            state.set_texture(self.dog_tex, 0, 0);
+            state.set_matcap(*matcap_id, 1, 3);
+            state.set_texture(self.ship_tex, 2, 8);
+            state.set_matcap(
+                (*matcap_id * 2) % self.matcaps.len() + self.matcaps[0],
+                3,
+                8,
+            );
             state.draw_static_mesh_indexed(self.dog_matcap_mesh);
 
             state.push_matrix(
                 Mat4::from_translation(translation + Vec3::new(0.0, -2.0, 0.0)) * rotation * scale,
             );
-            state.set_texture(self.ship_tex);
+            state.set_texture(self.ship_tex, 0, 0);
+            state.set_texture(0, 2, 0);
             state.draw_static_mesh_indexed(self.ship_mesh);
         }
 
-        state.set_texture(self.dog_tex);
+        state.set_texture(self.dog_tex, 0, 1);
         state.push_matrix(Mat4::IDENTITY);
         state.draw_static_mesh_indexed(self.dog_static);
     }
